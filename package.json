@@ -1,0 +1,23 @@
+package.json
+{
+  "name": "zerobased-pinbot",
+  "version": "1.0.0",
+  "description": "Automated Pinterest pin scheduler with AI-powered content generation",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["pinterest", "automation", "scheduler", "etsy"],
+  "author": "Kyle - ZeroBasedUK",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "node-cron": "^3.0.2",
+    "dotenv": "^16.3.1",
+    "axios": "^1.6.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
