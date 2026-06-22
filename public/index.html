@@ -224,6 +224,38 @@
             border-bottom: 1px solid #1a4d6d;
             color: #888;
         }
+
+        .alert {
+            background: rgba(255, 193, 7, 0.1);
+            border: 1px solid #ffc107;
+            color: #ffc107;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+
+        .error {
+            background: rgba(244, 67, 54, 0.1);
+            border: 1px solid #f44336;
+            color: #f44336;
+        }
+
+        .success {
+            background: rgba(76, 175, 80, 0.1);
+            border: 1px solid #4caf50;
+            color: #4caf50;
+        }
+
+        label {
+            display: block;
+            margin-top: 10px;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
     </style>
 </head>
 <body>
@@ -255,48 +287,77 @@
             <button class="tab-btn" data-tab="setup">Setup</button>
         </div>
 
+        <!-- CONTROL TAB -->
         <div class="tab-content active" id="control">
             <div class="card">
                 <h2>System Control</h2>
                 <div class="countdown" id="countdown">Next check: --:--</div>
-                <div class="log" id="log"></div>
+                <div class="log" id="log">
+                    <div class="log-entry">PinBot initialized. Ready for commands.</div>
+                </div>
             </div>
         </div>
 
+        <!-- SCHEDULE TAB -->
         <div class="tab-content" id="schedule">
             <div class="card">
                 <h2>Posting Schedule</h2>
-                <label>Post times (HH:MM, comma-separated):</label>
-                <input type="text" id="scheduleSlots" placeholder="09:00,13:00,18:00">
-                <label>Max posts per day:</label>
-                <input type="number" id="maxPerDay" placeholder="3" min="1" max="10">
+                <div id="scheduleMessage"></div>
+                <div class="form-group">
+                    <label>Post times (HH:MM, comma-separated):</label>
+                    <input type="text" id="scheduleSlots" placeholder="09:00,13:00,18:00" value="09:00,13:00,18:00">
+                </div>
+                <div class="form-group">
+                    <label>Max posts per day:</label>
+                    <input type="number" id="maxPerDay" placeholder="3" value="3" min="1" max="10">
+                </div>
                 <button onclick="saveSchedule()">Save Schedule</button>
             </div>
         </div>
 
+        <!-- PRODUCTS TAB -->
         <div class="tab-content" id="products">
             <div class="card">
                 <h2>Manage Products</h2>
-                <input type="text" id="productName" placeholder="Product name">
-                <input type="text" id="productLink" placeholder="Etsy link">
-                <input type="text" id="productKeywords" placeholder="Keywords (comma-separated)">
+                <div id="productsMessage"></div>
+                <div class="form-group">
+                    <label>Product name:</label>
+                    <input type="text" id="productName" placeholder="Complete Monthly Budget Planner (UK)">
+                </div>
+                <div class="form-group">
+                    <label>Etsy link:</label>
+                    <input type="text" id="productLink" placeholder="https://www.etsy.com/uk/listing/...">
+                </div>
+                <div class="form-group">
+                    <label>Keywords (comma-separated):</label>
+                    <input type="text" id="productKeywords" placeholder="budget, planner, UK, finance">
+                </div>
                 <button onclick="addProduct()">Add Product</button>
             </div>
             <div id="productsList" class="grid"></div>
         </div>
 
+        <!-- IMAGES TAB -->
         <div class="tab-content" id="images">
             <div class="card">
                 <h2>Manage Images</h2>
-                <select id="imageProduct">
-                    <option value="">Select product...</option>
-                </select>
-                <input type="text" id="imageUrl" placeholder="Image URL">
+                <div id="imagesMessage"></div>
+                <div class="form-group">
+                    <label>Select product:</label>
+                    <select id="imageProduct">
+                        <option value="">Loading products...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Image URL:</label>
+                    <input type="text" id="imageUrl" placeholder="https://i.etsystatic.com/...">
+                </div>
                 <button onclick="addImage()">Add Image</button>
             </div>
             <div id="imagesList" class="grid"></div>
         </div>
 
+        <!-- PINS TAB -->
         <div class="tab-content" id="pins">
             <div class="card">
                 <h2>Recent Pins</h2>
@@ -304,31 +365,58 @@
             </div>
         </div>
 
+        <!-- SETUP TAB -->
         <div class="tab-content" id="setup">
             <div class="card">
-                <h2>Load Boards</h2>
-                <p style="color: #999; margin-bottom: 15px;">Fetch your Pinterest boards</p>
-                <button onclick="loadBoards()">Refresh Boards</button>
+                <h2>Pinterest Boards</h2>
+                <div id="setupMessage"></div>
+                <p style="color: #999; margin-bottom: 15px;">Fetch your Pinterest boards to set as default</p>
+                <button onclick="loadBoards()">Load Boards</button>
                 <div id="boardsList" class="grid" style="margin-top: 20px;"></div>
             </div>
         </div>
     </div>
 
     <script>
+        const API_BASE = window.location.origin;
+
+        // Tab switching
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
                 document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
                 btn.classList.add('active');
                 document.getElementById(btn.dataset.tab).classList.add('active');
+                
+                // Refresh data when switching to Products or Images
+                if (btn.dataset.tab === 'products') loadProducts();
+                if (btn.dataset.tab === 'images') { loadProducts(); loadImages(); }
             });
         });
 
-        document.getElementById('armToggle').addEventListener('click', () => {
+        // Arm toggle
+        let isArmed = false;
+        document.getElementById('armToggle').addEventListener('click', async () => {
+            isArmed = !isArmed;
             document.getElementById('armToggle').classList.toggle('armed');
-            document.getElementById('armStatus').textContent = document.getElementById('armToggle').classList.contains('armed') ? 'ARMED ✓' : 'STANDBY';
+            document.getElementById('armStatus').textContent = isArmed ? 'ARMED ✓' : 'STANDBY';
+            
+            try {
+                const res = await fetch(`${API_BASE}/api/arm`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ armed: isArmed })
+                });
+                if (!res.ok) throw new Error('Failed to update armed status');
+                addLog(`System ${isArmed ? 'ARMED ✓' : 'DISARMED'}`);
+            } catch (err) {
+                addLog(`ERROR: ${err.message}`, true);
+                isArmed = !isArmed;
+                document.getElementById('armToggle').classList.toggle('armed');
+            }
         });
 
+        // Countdown timer
         setInterval(() => {
             const now = new Date();
             const seconds = 60 - now.getSeconds();
@@ -336,21 +424,205 @@
             document.getElementById('countdown').textContent = `Next check: ${display}`;
         }, 1000);
 
-        function addProduct() {
-            alert('Dashboard connected! Add products through the interface.');
+        // Logging
+        function addLog(msg, isError = false) {
+            const log = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.style.color = isError ? '#f44336' : '#888';
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
         }
 
-        function addImage() {
-            alert('Dashboard connected! Add images through the interface.');
+        // Add Product
+        async function addProduct() {
+            const name = document.getElementById('productName').value.trim();
+            const link = document.getElementById('productLink').value.trim();
+            const keywords = document.getElementById('productKeywords').value.trim();
+
+            if (!name || !link || !keywords) {
+                showMessage('productsMessage', 'Please fill all fields', true);
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/api/products`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, link, keywords: keywords.split(',').map(k => k.trim()) })
+                });
+                if (!res.ok) throw new Error('Failed to add product');
+                
+                document.getElementById('productName').value = '';
+                document.getElementById('productLink').value = '';
+                document.getElementById('productKeywords').value = '';
+                
+                showMessage('productsMessage', 'Product added successfully!', false);
+                addLog(`Product added: ${name}`);
+                loadProducts();
+            } catch (err) {
+                showMessage('productsMessage', `Error: ${err.message}`, true);
+                addLog(`ERROR adding product: ${err.message}`, true);
+            }
         }
 
-        function saveSchedule() {
-            alert('Schedule saved!');
+        // Load Products
+        async function loadProducts() {
+            try {
+                const res = await fetch(`${API_BASE}/api/products`);
+                if (!res.ok) throw new Error('Failed to load products');
+                const products = await res.json();
+                
+                // Update product list
+                const list = document.getElementById('productsList');
+                list.innerHTML = '';
+                products.forEach(p => {
+                    const item = document.createElement('div');
+                    item.className = 'item';
+                    item.innerHTML = `
+                        <h3>${p.name}</h3>
+                        <p><strong>Keywords:</strong> ${p.keywords.join(', ')}</p>
+                        <p><a href="${p.link}" target="_blank" style="color: #4fb3d9;">View on Etsy →</a></p>
+                    `;
+                    list.appendChild(item);
+                });
+
+                // Update product dropdown
+                const select = document.getElementById('imageProduct');
+                select.innerHTML = '<option value="">Select product...</option>';
+                products.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.name;
+                    opt.textContent = p.name;
+                    select.appendChild(opt);
+                });
+            } catch (err) {
+                addLog(`ERROR loading products: ${err.message}`, true);
+            }
         }
 
-        function loadBoards() {
-            alert('Boards loaded! Configure in setup.');
+        // Add Image
+        async function addImage() {
+            const product = document.getElementById('imageProduct').value.trim();
+            const url = document.getElementById('imageUrl').value.trim();
+
+            if (!product || !url) {
+                showMessage('imagesMessage', 'Please select product and enter image URL', true);
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/api/images`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ product, url })
+                });
+                if (!res.ok) throw new Error('Failed to add image');
+                
+                document.getElementById('imageUrl').value = '';
+                showMessage('imagesMessage', 'Image added successfully!', false);
+                addLog(`Image added for ${product}`);
+                loadImages();
+            } catch (err) {
+                showMessage('imagesMessage', `Error: ${err.message}`, true);
+                addLog(`ERROR adding image: ${err.message}`, true);
+            }
         }
+
+        // Load Images
+        async function loadImages() {
+            try {
+                const res = await fetch(`${API_BASE}/api/images`);
+                if (!res.ok) throw new Error('Failed to load images');
+                const images = await res.json();
+                
+                const list = document.getElementById('imagesList');
+                list.innerHTML = '';
+                images.forEach(img => {
+                    const item = document.createElement('div');
+                    item.className = 'item';
+                    item.innerHTML = `
+                        <h3>${img.product}</h3>
+                        <img src="${img.url}" style="width: 100%; height: 150px; object-fit: cover; border-radius: 5px; margin-bottom: 10px;">
+                        <p style="font-size: 0.75em; color: #666; word-break: break-all;">${img.url}</p>
+                    `;
+                    list.appendChild(item);
+                });
+            } catch (err) {
+                addLog(`ERROR loading images: ${err.message}`, true);
+            }
+        }
+
+        // Save Schedule
+        async function saveSchedule() {
+            const slots = document.getElementById('scheduleSlots').value.trim();
+            const maxPerDay = document.getElementById('maxPerDay').value;
+
+            if (!slots || !maxPerDay) {
+                showMessage('scheduleMessage', 'Please fill all fields', true);
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/api/schedule`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        slots: slots.split(',').map(s => s.trim()),
+                        maxPerDay: parseInt(maxPerDay)
+                    })
+                });
+                if (!res.ok) throw new Error('Failed to save schedule');
+                
+                showMessage('scheduleMessage', `Schedule saved: ${slots} (max ${maxPerDay}/day)`, false);
+                addLog(`Schedule updated: ${slots}`);
+            } catch (err) {
+                showMessage('scheduleMessage', `Error: ${err.message}`, true);
+                addLog(`ERROR saving schedule: ${err.message}`, true);
+            }
+        }
+
+        // Load Boards
+        async function loadBoards() {
+            showMessage('setupMessage', 'Loading boards...', false);
+            try {
+                const res = await fetch(`${API_BASE}/api/boards`);
+                if (!res.ok) throw new Error('Failed to load boards');
+                const boards = await res.json();
+                
+                const list = document.getElementById('boardsList');
+                list.innerHTML = '';
+                boards.forEach(b => {
+                    const item = document.createElement('div');
+                    item.className = 'item';
+                    item.innerHTML = `
+                        <h3>${b.name}</h3>
+                        <p>${b.pins || 0} pins</p>
+                    `;
+                    list.appendChild(item);
+                });
+                
+                showMessage('setupMessage', `Loaded ${boards.length} boards`, false);
+                addLog(`Boards loaded: ${boards.length} found`);
+            } catch (err) {
+                showMessage('setupMessage', `Error: ${err.message}`, true);
+                addLog(`ERROR loading boards: ${err.message}`, true);
+            }
+        }
+
+        // Show message
+        function showMessage(elementId, msg, isError = false) {
+            const el = document.getElementById(elementId);
+            el.className = 'alert ' + (isError ? 'error' : 'success');
+            el.textContent = msg;
+        }
+
+        // Initialize
+        window.addEventListener('load', () => {
+            addLog('Dashboard loaded. Ready to configure.');
+            loadProducts();
+        });
     </script>
 </body>
 </html>
