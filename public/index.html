@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🤖 PinBot Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0a1f2e 0%, #132238 100%);
+            color: #e0e6ed;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            margin-bottom: 40px;
+            border-bottom: 2px solid #1a4d6d;
+            padding-bottom: 20px;
+        }
+
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.5em;
+            color: #4fb3d9;
+            margin-bottom: 5px;
+            text-shadow: 0 0 20px rgba(79, 179, 217, 0.3);
+        }
+
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(26, 77, 109, 0.4);
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border: 1px solid #1a4d6d;
+        }
+
+        .arm-switch {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .toggle {
+            width: 60px;
+            height: 30px;
+            background: #444;
+            border: 2px solid #1a4d6d;
+            border-radius: 15px;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .toggle.armed {
+            background: #00c853;
+            border-color: #00e676;
+            box-shadow: 0 0 20px rgba(0, 230, 118, 0.4);
+        }
+
+        .toggle span {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 24px;
+            height: 24px;
+            background: white;
+            border-radius: 12px;
+            transition: left 0.3s ease;
+        }
+
+        .toggle.armed span {
+            left: 32px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #1a4d6d;
+            overflow-x: auto;
+        }
+
+        .tab-btn {
+            padding: 12px 20px;
+            background: transparent;
+            color: #888;
+            border: none;
+            cursor: pointer;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1em;
+            transition: all 0.3s ease;
+            border-bottom: 3px solid transparent;
+        }
+
+        .tab-btn:hover {
+            color: #4fb3d9;
+        }
+
+        .tab-btn.active {
+            color: #4fb3d9;
+            border-bottom-color: #4fb3d9;
+            text-shadow: 0 0 10px rgba(79, 179, 217, 0.5);
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .card {
+            background: rgba(26, 77, 109, 0.3);
+            border: 1px solid #1a4d6d;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .card h2 {
+            font-family: 'Space Grotesk', sans-serif;
+            color: #4fb3d9;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        input, textarea, select {
+            background: rgba(10, 31, 46, 0.6);
+            border: 1px solid #1a4d6d;
+            color: #e0e6ed;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: 'Inter', sans-serif;
+            margin-bottom: 10px;
+            width: 100%;
+        }
+
+        button {
+            background: #4fb3d9;
+            color: #0a1f2e;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background: #6ec8e8;
+            box-shadow: 0 0 15px rgba(79, 179, 217, 0.4);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .item {
+            background: rgba(10, 31, 46, 0.4);
+            border: 1px solid #1a4d6d;
+            padding: 15px;
+            border-radius: 5px;
+        }
+
+        .item h3 {
+            color: #4fb3d9;
+            margin-bottom: 10px;
+        }
+
+        .item p {
+            font-size: 0.9em;
+            color: #999;
+            margin: 5px 0;
+        }
+
+        .countdown {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.5em;
+            color: #4fb3d9;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .log {
+            background: rgba(10, 31, 46, 0.6);
+            border: 1px solid #1a4d6d;
+            padding: 15px;
+            border-radius: 5px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85em;
+        }
+
+        .log-entry {
+            padding: 8px;
+            border-bottom: 1px solid #1a4d6d;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 PinBot Command Center</h1>
+            <p style="color: #666; margin-top: 5px;">Automated Pinterest Pin Scheduler</p>
+        </header>
+
+        <div class="status-bar">
+            <div class="arm-switch">
+                <span>System Status:</span>
+                <div class="toggle" id="armToggle">
+                    <span></span>
+                </div>
+                <span id="armStatus">STANDBY</span>
+            </div>
+            <div>
+                <span id="nextPost" style="color: #4fb3d9;"></span>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="control">Control</button>
+            <button class="tab-btn" data-tab="schedule">Schedule</button>
+            <button class="tab-btn" data-tab="products">Products</button>
+            <button class="tab-btn" data-tab="images">Images</button>
+            <button class="tab-btn" data-tab="pins">Pins</button>
+            <button class="tab-btn" data-tab="setup">Setup</button>
+        </div>
+
+        <div class="tab-content active" id="control">
+            <div class="card">
+                <h2>System Control</h2>
+                <div class="countdown" id="countdown">Next check: --:--</div>
+                <div class="log" id="log"></div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="schedule">
+            <div class="card">
+                <h2>Posting Schedule</h2>
+                <label>Post times (HH:MM, comma-separated):</label>
+                <input type="text" id="scheduleSlots" placeholder="09:00,13:00,18:00">
+                <label>Max posts per day:</label>
+                <input type="number" id="maxPerDay" placeholder="3" min="1" max="10">
+                <button onclick="saveSchedule()">Save Schedule</button>
+            </div>
+        </div>
+
+        <div class="tab-content" id="products">
+            <div class="card">
+                <h2>Manage Products</h2>
+                <input type="text" id="productName" placeholder="Product name">
+                <input type="text" id="productLink" placeholder="Etsy link">
+                <input type="text" id="productKeywords" placeholder="Keywords (comma-separated)">
+                <button onclick="addProduct()">Add Product</button>
+            </div>
+            <div id="productsList" class="grid"></div>
+        </div>
+
+        <div class="tab-content" id="images">
+            <div class="card">
+                <h2>Manage Images</h2>
+                <select id="imageProduct">
+                    <option value="">Select product...</option>
+                </select>
+                <input type="text" id="imageUrl" placeholder="Image URL">
+                <button onclick="addImage()">Add Image</button>
+            </div>
+            <div id="imagesList" class="grid"></div>
+        </div>
+
+        <div class="tab-content" id="pins">
+            <div class="card">
+                <h2>Recent Pins</h2>
+                <div id="pinsList" class="grid"></div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="setup">
+            <div class="card">
+                <h2>Load Boards</h2>
+                <p style="color: #999; margin-bottom: 15px;">Fetch your Pinterest boards</p>
+                <button onclick="loadBoards()">Refresh Boards</button>
+                <div id="boardsList" class="grid" style="margin-top: 20px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById(btn.dataset.tab).classList.add('active');
+            });
+        });
+
+        document.getElementById('armToggle').addEventListener('click', () => {
+            document.getElementById('armToggle').classList.toggle('armed');
+            document.getElementById('armStatus').textContent = document.getElementById('armToggle').classList.contains('armed') ? 'ARMED ✓' : 'STANDBY';
+        });
+
+        setInterval(() => {
+            const now = new Date();
+            const seconds = 60 - now.getSeconds();
+            const display = String(Math.floor(seconds / 60)).padStart(2, '0') + ':' + String(seconds % 60).padStart(2, '0');
+            document.getElementById('countdown').textContent = `Next check: ${display}`;
+        }, 1000);
+
+        function addProduct() {
+            alert('Dashboard connected! Add products through the interface.');
+        }
+
+        function addImage() {
+            alert('Dashboard connected! Add images through the interface.');
+        }
+
+        function saveSchedule() {
+            alert('Schedule saved!');
+        }
+
+        function loadBoards() {
+            alert('Boards loaded! Configure in setup.');
+        }
+    </script>
+</body>
+</html>
