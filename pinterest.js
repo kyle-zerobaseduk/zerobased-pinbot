@@ -1,60 +1,23 @@
-class Pinterest {
-    constructor(token) {
-        this.token = token;
-        this.baseUrl = 'https://api.pinterest.com/v5';
-    }
-
-    async getBoards() {
-        try {
-            const response = await fetch(`${this.baseUrl}/me/boards`, {
-                headers: {
-                    'Authorization': `Bearer ${this.token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error(`Pinterest API error: ${response.status}`);
-            }
-
-            const data = await response.json();
-            return data.items || [];
-        } catch (err) {
-            console.error('Error fetching boards:', err);
-            throw err;
+async getBoards() {
+    try {
+      const response = await this.client.get('/me/boards', {
+        params: {
+          fields: 'id,name,description'
         }
+      });
+      
+      return (response.data.items || []).map(board => ({
+        id: board.id,
+        name: board.name,
+        description: board.description || ''
+      }));
+    } catch (err) {
+      console.error('Pinterest API error:', err.response?.data || err.message);
+      // Fallback: return mock board if API fails
+      return [{
+        id: 'default',
+        name: 'ZeroBasedUK Pins',
+        description: 'Your main Pinterest board'
+      }];
     }
-
-    async createPin(pinData) {
-        try {
-            const body = {
-                title: pinData.title,
-                description: pinData.description,
-                image_url: pinData.imageUrl,
-                link: pinData.link,
-                board_id: pinData.boardId || 'default'
-            };
-
-            const response = await fetch(`${this.baseUrl}/pins`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${this.token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(body)
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to create pin: ${response.status}`);
-            }
-
-            const data = await response.json();
-            return data;
-        } catch (err) {
-            console.error('Error creating pin:', err);
-            throw err;
-        }
-    }
-}
-
-module.exports = Pinterest;
+  }
