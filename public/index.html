@@ -1,628 +1,233 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🤖 PinBot Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #0a1f2e 0%, #132238 100%);
-            color: #e0e6ed;
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-
-        header {
-            margin-bottom: 40px;
-            border-bottom: 2px solid #1a4d6d;
-            padding-bottom: 20px;
-        }
-
-        h1 {
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 2.5em;
-            color: #4fb3d9;
-            margin-bottom: 5px;
-            text-shadow: 0 0 20px rgba(79, 179, 217, 0.3);
-        }
-
-        .status-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(26, 77, 109, 0.4);
-            padding: 15px 20px;
-            border-radius: 8px;
-            margin-bottom: 30px;
-            border: 1px solid #1a4d6d;
-        }
-
-        .arm-switch {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .toggle {
-            width: 60px;
-            height: 30px;
-            background: #444;
-            border: 2px solid #1a4d6d;
-            border-radius: 15px;
-            cursor: pointer;
-            position: relative;
-            transition: all 0.3s ease;
-        }
-
-        .toggle.armed {
-            background: #00c853;
-            border-color: #00e676;
-            box-shadow: 0 0 20px rgba(0, 230, 118, 0.4);
-        }
-
-        .toggle span {
-            position: absolute;
-            top: 2px;
-            left: 2px;
-            width: 24px;
-            height: 24px;
-            background: white;
-            border-radius: 12px;
-            transition: left 0.3s ease;
-        }
-
-        .toggle.armed span {
-            left: 32px;
-        }
-
-        .tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #1a4d6d;
-            overflow-x: auto;
-        }
-
-        .tab-btn {
-            padding: 12px 20px;
-            background: transparent;
-            color: #888;
-            border: none;
-            cursor: pointer;
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 1em;
-            transition: all 0.3s ease;
-            border-bottom: 3px solid transparent;
-        }
-
-        .tab-btn:hover {
-            color: #4fb3d9;
-        }
-
-        .tab-btn.active {
-            color: #4fb3d9;
-            border-bottom-color: #4fb3d9;
-            text-shadow: 0 0 10px rgba(79, 179, 217, 0.5);
-        }
-
-        .tab-content {
-            display: none;
-            animation: fadeIn 0.3s ease;
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .card {
-            background: rgba(26, 77, 109, 0.3);
-            border: 1px solid #1a4d6d;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 20px;
-            backdrop-filter: blur(10px);
-        }
-
-        .card h2 {
-            font-family: 'Space Grotesk', sans-serif;
-            color: #4fb3d9;
-            margin-bottom: 15px;
-            font-size: 1.3em;
-        }
-
-        input, textarea, select {
-            background: rgba(10, 31, 46, 0.6);
-            border: 1px solid #1a4d6d;
-            color: #e0e6ed;
-            padding: 10px;
-            border-radius: 5px;
-            font-family: 'Inter', sans-serif;
-            margin-bottom: 10px;
-            width: 100%;
-        }
-
-        button {
-            background: #4fb3d9;
-            color: #0a1f2e;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-family: 'Space Grotesk', sans-serif;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-
-        button:hover {
-            background: #6ec8e8;
-            box-shadow: 0 0 15px rgba(79, 179, 217, 0.4);
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-        }
-
-        .item {
-            background: rgba(10, 31, 46, 0.4);
-            border: 1px solid #1a4d6d;
-            padding: 15px;
-            border-radius: 5px;
-        }
-
-        .item h3 {
-            color: #4fb3d9;
-            margin-bottom: 10px;
-        }
-
-        .item p {
-            font-size: 0.9em;
-            color: #999;
-            margin: 5px 0;
-        }
-
-        .countdown {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 1.5em;
-            color: #4fb3d9;
-            margin: 20px 0;
-            text-align: center;
-        }
-
-        .log {
-            background: rgba(10, 31, 46, 0.6);
-            border: 1px solid #1a4d6d;
-            padding: 15px;
-            border-radius: 5px;
-            max-height: 300px;
-            overflow-y: auto;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.85em;
-        }
-
-        .log-entry {
-            padding: 8px;
-            border-bottom: 1px solid #1a4d6d;
-            color: #888;
-        }
-
-        .alert {
-            background: rgba(255, 193, 7, 0.1);
-            border: 1px solid #ffc107;
-            color: #ffc107;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 15px;
-        }
-
-        .error {
-            background: rgba(244, 67, 54, 0.1);
-            border: 1px solid #f44336;
-            color: #f44336;
-        }
-
-        .success {
-            background: rgba(76, 175, 80, 0.1);
-            border: 1px solid #4caf50;
-            color: #4caf50;
-        }
-
-        label {
-            display: block;
-            margin-top: 10px;
-            margin-bottom: 5px;
-            font-weight: 500;
-        }
-
-        .form-group {
-            margin-bottom: 15px;
-        }
-    </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>PinBot V2</title>
+  <style>
+    :root { color-scheme: dark; --bg:#101114; --card:#1b1d22; --line:#30333b; --text:#f5f7fb; --muted:#aeb4c0; --accent:#e60023; --ok:#35c46a; --warn:#f2b84b; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--text); }
+    .wrap { width:min(100%,980px); margin:auto; padding:18px; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:18px; }
+    h1 { font-size:1.55rem; margin:0; }
+    h2 { font-size:1.15rem; margin:0 0 12px; }
+    .muted { color:var(--muted); font-size:.9rem; }
+    .status { display:flex; gap:8px; align-items:center; }
+    .dot { width:10px; height:10px; border-radius:50%; background:var(--warn); }
+    .dot.on { background:var(--ok); }
+    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; }
+    .brand-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+    .badge { display:inline-block; padding:5px 9px; border-radius:999px; background:#292c33; color:var(--muted); font-size:.78rem; }
+    .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:14px 0; }
+    .stat { background:#14161a; border-radius:12px; padding:10px; text-align:center; }
+    .stat strong { display:block; font-size:1.15rem; }
+    button, input, select, textarea { font:inherit; }
+    button { border:0; border-radius:11px; padding:10px 13px; cursor:pointer; background:#343842; color:var(--text); font-weight:650; }
+    button.primary { background:var(--accent); }
+    button.good { background:#19733a; }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    .actions { display:flex; flex-wrap:wrap; gap:8px; }
+    .section { margin-top:14px; }
+    details { border-top:1px solid var(--line); padding-top:12px; margin-top:12px; }
+    summary { cursor:pointer; font-weight:700; }
+    label { display:block; color:var(--muted); font-size:.82rem; margin:10px 0 5px; }
+    input, select, textarea { width:100%; background:#111318; color:var(--text); border:1px solid var(--line); border-radius:10px; padding:10px; }
+    textarea { min-height:75px; resize:vertical; }
+    .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .list { display:grid; gap:8px; margin-top:10px; }
+    .item { background:#13151a; padding:10px; border-radius:10px; border:1px solid #292c32; }
+    .item b { display:block; }
+    .logs { max-height:300px; overflow:auto; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.78rem; }
+    .log { padding:8px 0; border-bottom:1px solid #272a31; }
+    .error { color:#ff8b96; }
+    .success { color:#7de89f; }
+    .full { grid-column:1/-1; }
+    @media (max-width:720px) { .grid { grid-template-columns:1fr; } .row { grid-template-columns:1fr; } }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>🤖 PinBot Command Center</h1>
-            <p style="color: #666; margin-top: 5px;">Automated Pinterest Pin Scheduler</p>
-        </header>
-
-        <div class="status-bar">
-            <div class="arm-switch">
-                <span>System Status:</span>
-                <div class="toggle" id="armToggle">
-                    <span></span>
-                </div>
-                <span id="armStatus">STANDBY</span>
-            </div>
-            <div>
-                <span id="nextPost" style="color: #4fb3d9;"></span>
-            </div>
-        </div>
-
-        <div class="tabs">
-            <button class="tab-btn active" data-tab="control">Control</button>
-            <button class="tab-btn" data-tab="schedule">Schedule</button>
-            <button class="tab-btn" data-tab="products">Products</button>
-            <button class="tab-btn" data-tab="images">Images</button>
-            <button class="tab-btn" data-tab="pins">Pins</button>
-            <button class="tab-btn" data-tab="setup">Setup</button>
-        </div>
-
-        <!-- CONTROL TAB -->
-        <div class="tab-content active" id="control">
-            <div class="card">
-                <h2>System Control</h2>
-                <div class="countdown" id="countdown">Next check: --:--</div>
-                <div class="log" id="log">
-                    <div class="log-entry">PinBot initialized. Ready for commands.</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- SCHEDULE TAB -->
-        <div class="tab-content" id="schedule">
-            <div class="card">
-                <h2>Posting Schedule</h2>
-                <div id="scheduleMessage"></div>
-                <div class="form-group">
-                    <label>Post times (HH:MM, comma-separated):</label>
-                    <input type="text" id="scheduleSlots" placeholder="09:00,13:00,18:00" value="09:00,13:00,18:00">
-                </div>
-                <div class="form-group">
-                    <label>Max posts per day:</label>
-                    <input type="number" id="maxPerDay" placeholder="3" value="3" min="1" max="10">
-                </div>
-                <button onclick="saveSchedule()">Save Schedule</button>
-            </div>
-        </div>
-
-        <!-- PRODUCTS TAB -->
-        <div class="tab-content" id="products">
-            <div class="card">
-                <h2>Manage Products</h2>
-                <div id="productsMessage"></div>
-                <div class="form-group">
-                    <label>Product name:</label>
-                    <input type="text" id="productName" placeholder="Complete Monthly Budget Planner (UK)">
-                </div>
-                <div class="form-group">
-                    <label>Etsy link:</label>
-                    <input type="text" id="productLink" placeholder="https://www.etsy.com/uk/listing/...">
-                </div>
-                <div class="form-group">
-                    <label>Keywords (comma-separated):</label>
-                    <input type="text" id="productKeywords" placeholder="budget, planner, UK, finance">
-                </div>
-                <button onclick="addProduct()">Add Product</button>
-            </div>
-            <div id="productsList" class="grid"></div>
-        </div>
-
-        <!-- IMAGES TAB -->
-        <div class="tab-content" id="images">
-            <div class="card">
-                <h2>Manage Images</h2>
-                <div id="imagesMessage"></div>
-                <div class="form-group">
-                    <label>Select product:</label>
-                    <select id="imageProduct">
-                        <option value="">Loading products...</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Image URL:</label>
-                    <input type="text" id="imageUrl" placeholder="https://i.etsystatic.com/...">
-                </div>
-                <button onclick="addImage()">Add Image</button>
-            </div>
-            <div id="imagesList" class="grid"></div>
-        </div>
-
-        <!-- PINS TAB -->
-        <div class="tab-content" id="pins">
-            <div class="card">
-                <h2>Recent Pins</h2>
-                <div id="pinsList" class="grid"></div>
-            </div>
-        </div>
-
-        <!-- SETUP TAB -->
-        <div class="tab-content" id="setup">
-            <div class="card">
-                <h2>Pinterest Boards</h2>
-                <div id="setupMessage"></div>
-                <p style="color: #999; margin-bottom: 15px;">Fetch your Pinterest boards to set as default</p>
-                <button onclick="loadBoards()">Load Boards</button>
-                <div id="boardsList" class="grid" style="margin-top: 20px;"></div>
-            </div>
-        </div>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>📌 PinBot V2</h1>
+      <div class="muted">K.D.Publishing + ZeroBased UK</div>
     </div>
+    <div class="status"><span id="statusDot" class="dot"></span><span id="statusText">Loading…</span></div>
+  </header>
 
-    <script>
-        const API_BASE = window.location.origin;
+  <div class="card" style="margin-bottom:14px">
+    <div class="brand-head">
+      <div><h2>Automatic posting</h2><div id="timeText" class="muted">Checking server…</div></div>
+      <button id="armBtn" class="good" onclick="toggleArm()">Loading…</button>
+    </div>
+  </div>
 
-        // Tab switching
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-                btn.classList.add('active');
-                document.getElementById(btn.dataset.tab).classList.add('active');
-                
-                // Refresh data when switching to Products or Images
-                if (btn.dataset.tab === 'products') loadProducts();
-                if (btn.dataset.tab === 'images') { loadProducts(); loadImages(); }
-            });
-        });
+  <div id="brandGrid" class="grid"></div>
 
-        // Arm toggle
-        let isArmed = false;
-        document.getElementById('armToggle').addEventListener('click', async () => {
-            isArmed = !isArmed;
-            document.getElementById('armToggle').classList.toggle('armed');
-            document.getElementById('armStatus').textContent = isArmed ? 'ARMED ✓' : 'STANDBY';
-            
-            try {
-                const res = await fetch(`${API_BASE}/api/arm`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ armed: isArmed })
-                });
-                if (!res.ok) throw new Error('Failed to update armed status');
-                addLog(`System ${isArmed ? 'ARMED ✓' : 'DISARMED'}`);
-            } catch (err) {
-                addLog(`ERROR: ${err.message}`, true);
-                isArmed = !isArmed;
-                document.getElementById('armToggle').classList.toggle('armed');
-            }
-        });
+  <div class="card section">
+    <h2>Recent activity</h2>
+    <div id="logs" class="logs muted">No activity yet.</div>
+  </div>
+</div>
 
-        // Countdown timer
-        setInterval(() => {
-            const now = new Date();
-            const seconds = 60 - now.getSeconds();
-            const display = String(Math.floor(seconds / 60)).padStart(2, '0') + ':' + String(seconds % 60).padStart(2, '0');
-            document.getElementById('countdown').textContent = `Next check: ${display}`;
-        }, 1000);
+<script>
+let brands = [];
+let armed = false;
 
-        // Logging
-        function addLog(msg, isError = false) {
-            const log = document.getElementById('log');
-            const entry = document.createElement('div');
-            entry.className = 'log-entry';
-            entry.style.color = isError ? '#f44336' : '#888';
-            entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-            log.appendChild(entry);
-            log.scrollTop = log.scrollHeight;
-        }
+async function api(url, options={}) {
+  const res = await fetch(url, { headers:{'Content-Type':'application/json'}, ...options });
+  const data = await res.json().catch(()=>({}));
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  return data;
+}
 
-        // Add Product
-        async function addProduct() {
-            const name = document.getElementById('productName').value.trim();
-            const link = document.getElementById('productLink').value.trim();
-            const keywords = document.getElementById('productKeywords').value.trim();
+function esc(value='') {
+  return String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+}
 
-            if (!name || !link || !keywords) {
-                showMessage('productsMessage', 'Please fill all fields', true);
-                return;
-            }
+async function load() {
+  try {
+    const [status, brandData, logData] = await Promise.all([api('/api/status'), api('/api/brands'), api('/api/logs')]);
+    brands = brandData;
+    armed = status.armed;
+    renderStatus(status);
+    renderBrands();
+    renderLogs(logData.logs || []);
+  } catch (e) {
+    document.getElementById('statusText').textContent = 'Server error';
+    document.getElementById('logs').innerHTML = `<div class="error">${esc(e.message)}</div>`;
+  }
+}
 
-            try {
-                const res = await fetch(`${API_BASE}/api/products`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, link, keywords: keywords.split(',').map(k => k.trim()) })
-                });
-                if (!res.ok) throw new Error('Failed to add product');
-                
-                document.getElementById('productName').value = '';
-                document.getElementById('productLink').value = '';
-                document.getElementById('productKeywords').value = '';
-                
-                showMessage('productsMessage', 'Product added successfully!', false);
-                addLog(`Product added: ${name}`);
-                loadProducts();
-            } catch (err) {
-                showMessage('productsMessage', `Error: ${err.message}`, true);
-                addLog(`ERROR adding product: ${err.message}`, true);
-            }
-        }
+function renderStatus(status) {
+  const dot = document.getElementById('statusDot');
+  dot.classList.toggle('on', armed);
+  document.getElementById('statusText').textContent = armed ? 'Auto posting ON' : 'Paused';
+  const btn = document.getElementById('armBtn');
+  btn.textContent = armed ? 'Pause all' : 'Start auto posting';
+  btn.className = armed ? '' : 'good';
+  document.getElementById('timeText').textContent = `London time ${status.londonTime || '—'} · checks every minute`;
+}
 
-        // Load Products
-        async function loadProducts() {
-            try {
-                const res = await fetch(`${API_BASE}/api/products`);
-                if (!res.ok) throw new Error('Failed to load products');
-                const products = await res.json();
-                
-                // Update product list
-                const list = document.getElementById('productsList');
-                list.innerHTML = '';
-                products.forEach(p => {
-                    const item = document.createElement('div');
-                    item.className = 'item';
-                    item.innerHTML = `
-                        <h3>${p.name}</h3>
-                        <p><strong>Keywords:</strong> ${p.keywords.join(', ')}</p>
-                        <p><a href="${p.link}" target="_blank" style="color: #4fb3d9;">View on Etsy →</a></p>
-                    `;
-                    list.appendChild(item);
-                });
+function renderBrands() {
+  const grid = document.getElementById('brandGrid');
+  grid.innerHTML = brands.map(b => `
+    <section class="card" id="brand-${esc(b.id)}">
+      <div class="brand-head">
+        <div>
+          <h2>${b.id === 'kd-publishing' ? '📚' : '💷'} ${esc(b.name)}</h2>
+          <div class="muted">Pinterest → ${esc(b.destination)}</div>
+        </div>
+        <span class="badge">${b.enabled ? 'ON' : 'OFF'}</span>
+      </div>
+      <div class="stats">
+        <div class="stat"><strong>${b.products}</strong><span class="muted">Products</span></div>
+        <div class="stat"><strong>${b.images}</strong><span class="muted">Images</span></div>
+        <div class="stat"><strong>${b.pinsToday}</strong><span class="muted">Today</span></div>
+      </div>
+      <div class="muted" style="margin-bottom:10px">Pinterest: <span class="${b.pinterestConfigured?'success':'error'}">${b.pinterestConfigured?'token configured':'needs connection'}</span></div>
+      <div class="muted" style="margin-bottom:12px">Schedule: ${esc((b.schedule?.slots||[]).join(' · '))} · max ${b.schedule?.maxPerDay || 3}/day</div>
+      <div class="actions">
+        <button onclick="toggleBrand('${b.id}', ${!b.enabled})">${b.enabled?'Turn off':'Turn on'}</button>
+        <button onclick="loadBoards('${b.id}')">Load boards</button>
+        <button class="primary" onclick="postNow('${b.id}')">Post now</button>
+      </div>
 
-                // Update product dropdown
-                const select = document.getElementById('imageProduct');
-                select.innerHTML = '<option value="">Select product...</option>';
-                products.forEach(p => {
-                    const opt = document.createElement('option');
-                    opt.value = p.name;
-                    opt.textContent = p.name;
-                    select.appendChild(opt);
-                });
-            } catch (err) {
-                addLog(`ERROR loading products: ${err.message}`, true);
-            }
-        }
+      <details>
+        <summary>Add product</summary>
+        <label>Product / book name</label><input id="name-${b.id}" placeholder="e.g. Classic Motorcycles Word Search" />
+        <label>${b.destination} link</label><input id="link-${b.id}" placeholder="https://…" />
+        <label>Keywords (comma separated)</label><input id="keywords-${b.id}" placeholder="motorcycles, word search, gifts" />
+        <label>Pinterest board</label><select id="board-${b.id}"><option value="">Load boards first</option></select>
+        <label>Approved descriptions (optional, one per line)</label><textarea id="descriptions-${b.id}" placeholder="PinBot can rotate these instead of generating fresh copy."></textarea>
+        <div class="actions" style="margin-top:10px"><button class="good" onclick="addProduct('${b.id}')">Save product</button></div>
+        <div id="products-${b.id}" class="list"></div>
+      </details>
 
-        // Add Image
-        async function addImage() {
-            const product = document.getElementById('imageProduct').value.trim();
-            const url = document.getElementById('imageUrl').value.trim();
+      <details>
+        <summary>Add Pin image</summary>
+        <label>Product</label><select id="imageProduct-${b.id}"><option value="">Loading products…</option></select>
+        <label>Public image URL</label><input id="imageUrl-${b.id}" placeholder="https://…/pin-image.jpg" />
+        <div class="actions" style="margin-top:10px"><button class="good" onclick="addImage('${b.id}')">Save image</button></div>
+      </details>
+    </section>
+  `).join('');
 
-            if (!product || !url) {
-                showMessage('imagesMessage', 'Please select product and enter image URL', true);
-                return;
-            }
+  brands.forEach(b => loadProducts(b.id));
+}
 
-            try {
-                const res = await fetch(`${API_BASE}/api/images`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ product, url })
-                });
-                if (!res.ok) throw new Error('Failed to add image');
-                
-                document.getElementById('imageUrl').value = '';
-                showMessage('imagesMessage', 'Image added successfully!', false);
-                addLog(`Image added for ${product}`);
-                loadImages();
-            } catch (err) {
-                showMessage('imagesMessage', `Error: ${err.message}`, true);
-                addLog(`ERROR adding image: ${err.message}`, true);
-            }
-        }
+async function toggleArm() {
+  try { await api('/api/arm', {method:'POST', body:JSON.stringify({armed:!armed})}); await load(); }
+  catch(e) { alert(e.message); }
+}
 
-        // Load Images
-        async function loadImages() {
-            try {
-                const res = await fetch(`${API_BASE}/api/images`);
-                if (!res.ok) throw new Error('Failed to load images');
-                const images = await res.json();
-                
-                const list = document.getElementById('imagesList');
-                list.innerHTML = '';
-                images.forEach(img => {
-                    const item = document.createElement('div');
-                    item.className = 'item';
-                    item.innerHTML = `
-                        <h3>${img.product}</h3>
-                        <img src="${img.url}" style="width: 100%; height: 150px; object-fit: cover; border-radius: 5px; margin-bottom: 10px;">
-                        <p style="font-size: 0.75em; color: #666; word-break: break-all;">${img.url}</p>
-                    `;
-                    list.appendChild(item);
-                });
-            } catch (err) {
-                addLog(`ERROR loading images: ${err.message}`, true);
-            }
-        }
+async function toggleBrand(id, enabled) {
+  try { await api(`/api/brands/${id}`, {method:'PATCH', body:JSON.stringify({enabled})}); await load(); }
+  catch(e) { alert(e.message); }
+}
 
-        // Save Schedule
-        async function saveSchedule() {
-            const slots = document.getElementById('scheduleSlots').value.trim();
-            const maxPerDay = document.getElementById('maxPerDay').value;
+async function loadBoards(id) {
+  try {
+    const boards = await api(`/api/boards/${id}`);
+    const select = document.getElementById(`board-${id}`);
+    select.innerHTML = '<option value="">Choose a board…</option>' + boards.map(b=>`<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('');
+    alert(`Loaded ${boards.length} Pinterest boards.`);
+  } catch(e) { alert(e.message); }
+}
 
-            if (!slots || !maxPerDay) {
-                showMessage('scheduleMessage', 'Please fill all fields', true);
-                return;
-            }
+async function loadProducts(id) {
+  try {
+    const products = await api(`/api/products?brandId=${encodeURIComponent(id)}`);
+    const list = document.getElementById(`products-${id}`);
+    list.innerHTML = products.length ? products.map(p=>`<div class="item"><b>${esc(p.name)}</b><span class="muted">${esc(p.link)}</span></div>`).join('') : '<div class="muted">No products added yet.</div>';
+    const select = document.getElementById(`imageProduct-${id}`);
+    select.innerHTML = '<option value="">Choose a product…</option>' + products.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
+  } catch(e) { console.error(e); }
+}
 
-            try {
-                const res = await fetch(`${API_BASE}/api/schedule`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        slots: slots.split(',').map(s => s.trim()),
-                        maxPerDay: parseInt(maxPerDay)
-                    })
-                });
-                if (!res.ok) throw new Error('Failed to save schedule');
-                
-                showMessage('scheduleMessage', `Schedule saved: ${slots} (max ${maxPerDay}/day)`, false);
-                addLog(`Schedule updated: ${slots}`);
-            } catch (err) {
-                showMessage('scheduleMessage', `Error: ${err.message}`, true);
-                addLog(`ERROR saving schedule: ${err.message}`, true);
-            }
-        }
+async function addProduct(id) {
+  const name = document.getElementById(`name-${id}`).value.trim();
+  const link = document.getElementById(`link-${id}`).value.trim();
+  const boardId = document.getElementById(`board-${id}`).value;
+  const keywords = document.getElementById(`keywords-${id}`).value.split(',').map(s=>s.trim()).filter(Boolean);
+  const descriptions = document.getElementById(`descriptions-${id}`).value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if (!name || !link) return alert('Add the product name and link first.');
+  try {
+    await api('/api/products', {method:'POST', body:JSON.stringify({brandId:id,name,link,boardId,keywords,descriptions})});
+    await load();
+  } catch(e) { alert(e.message); }
+}
 
-        // Load Boards
-        async function loadBoards() {
-            showMessage('setupMessage', 'Loading boards...', false);
-            try {
-                const res = await fetch(`${API_BASE}/api/boards`);
-                if (!res.ok) throw new Error('Failed to load boards');
-                const boards = await res.json();
-                
-                const list = document.getElementById('boardsList');
-                list.innerHTML = '';
-                boards.forEach(b => {
-                    const item = document.createElement('div');
-                    item.className = 'item';
-                    item.innerHTML = `
-                        <h3>${b.name}</h3>
-                        <p>${b.pins || 0} pins</p>
-                    `;
-                    list.appendChild(item);
-                });
-                
-                showMessage('setupMessage', `Loaded ${boards.length} boards`, false);
-                addLog(`Boards loaded: ${boards.length} found`);
-            } catch (err) {
-                showMessage('setupMessage', `Error: ${err.message}`, true);
-                addLog(`ERROR loading boards: ${err.message}`, true);
-            }
-        }
+async function addImage(id) {
+  const productId = document.getElementById(`imageProduct-${id}`).value;
+  const url = document.getElementById(`imageUrl-${id}`).value.trim();
+  if (!productId || !url) return alert('Choose a product and add the image URL.');
+  try {
+    await api('/api/images', {method:'POST', body:JSON.stringify({brandId:id,productId,url})});
+    document.getElementById(`imageUrl-${id}`).value='';
+    await load();
+  } catch(e) { alert(e.message); }
+}
 
-        // Show message
-        function showMessage(elementId, msg, isError = false) {
-            const el = document.getElementById(elementId);
-            el.className = 'alert ' + (isError ? 'error' : 'success');
-            el.textContent = msg;
-        }
+async function postNow(id) {
+  if (!confirm('Create and publish one Pinterest Pin now?')) return;
+  try {
+    const pin = await api(`/api/post-now/${id}`, {method:'POST', body:'{}'});
+    alert(`Pin published: ${pin.id}`);
+    await load();
+  } catch(e) { alert(e.message); }
+}
 
-        // Initialize
-        window.addEventListener('load', () => {
-            addLog('Dashboard loaded. Ready to configure.');
-            loadProducts();
-        });
-    </script>
+function renderLogs(logs) {
+  const el = document.getElementById('logs');
+  if (!logs.length) return el.textContent='No activity yet.';
+  el.innerHTML = logs.map(l=>`<div class="log ${String(l.message).includes('ERROR')?'error':''}">${esc(new Date(l.timestamp).toLocaleString())} · ${esc(l.brandId)} · ${esc(l.message)}</div>`).join('');
+}
+
+load();
+setInterval(load, 30000);
+</script>
 </body>
 </html>
