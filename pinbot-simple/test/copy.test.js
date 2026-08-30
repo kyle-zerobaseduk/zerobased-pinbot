@@ -3,7 +3,9 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-delete process.env.ANTHROPIC_API_KEY; // exercise the built-in writer
+process.env.ANTHROPIC_API_KEY = 'unused-invalid-key';
+delete process.env.AI_COPYWRITER_MODE; // built-in remains the safe default
+const config = require('../src/config');
 const copy = require('../src/copy');
 
 const kd = { id: 'kd', name: 'K.D. Publishing', marketplace: 'amazon', tagline: 'Books' };
@@ -70,7 +72,21 @@ test('a product with no keywords still produces usable copy', () => {
   assert.ok(text.keywords.length > 0);
 });
 
-test('generateCopy falls back to the built-in writer with no API key', async () => {
+test('generateCopy uses the built-in writer when paid AI mode is not enabled', async () => {
   const text = await copy.generateCopy(journal, kd, 0);
   assert.equal(text.source, 'offline');
+});
+
+test('a leftover Anthropic key does not enable paid AI calls by itself', () => {
+  assert.equal(config.aiConfigured, false);
+});
+
+test('ZeroBased UK copy matches Christmas, debt and monthly-budget products', () => {
+  const christmas = { title: 'Christmas Budget Planner', kind: 'Printable Christmas budget planner', keywords: [], notes: '' };
+  const debt = { title: 'UK Debt Payoff Tracker', kind: 'Printable debt payoff tracker', keywords: [], notes: '' };
+  const budget = { title: 'UK Monthly Budget Planner', kind: 'Printable monthly budget planner', keywords: [], notes: '' };
+
+  assert.match(copy.offlineCopy(christmas, zb, 0).description, /gifts|festive|Christmas/i);
+  assert.match(copy.offlineCopy(debt, zb, 0).description, /balance|debt|payment/i);
+  assert.match(copy.offlineCopy(budget, zb, 0).description, /pound|budget|money/i);
 });
