@@ -8,59 +8,75 @@ const config = require('./config');
 // quite different things, so its angles are split by product type - a puzzle
 // book should never be described as a journal.
 const ANGLES = {
-  kd_journal: [
-    'There is something calming about sitting down with a paper journal and no screen in sight.',
-    'Eighty days is long enough to build a habit and short enough to actually finish.',
-    'A prompt on every page, so you are never staring at a blank one.',
-    'It slots neatly into a morning coffee or a wind-down before bed.',
-    'Undated pages mean you can start today rather than in January.',
-    'Filling in one page a day adds up faster than you would expect.',
+  kd_calm: [
+    'The 80-day format includes daily check-ins, brain-dump space and stress tracking.',
+    'Brain-dump pages give you space to record thoughts alongside the daily check-in.',
+    'A 1-10 scale, regular pause points and a final reflection support the 80 daily entries.',
+    'Progress tracking and notes pages are included alongside the daily entries.',
+    'The journal is organised around 80 daily entries focused on calm and stress relief.',
+    'Ten-day pause points are included for reviewing progress.',
+  ],
+  kd_gratitude: [
+    'Each of the 80 days includes a gratitude prompt, check-in and Brain Dump section.',
+    'A mood scale and optional 4-7-8 breathing exercise sit alongside the daily prompt.',
+    'The journal is organised around 80 daily gratitude prompts.',
+    'Regular pause points and a final reflection are included in the 80-day structure.',
+    'The daily pages combine a gratitude prompt with space for reflection.',
+    'Progress tracking and notes pages are included.',
+  ],
+  kd_confidence: [
+    'Each daily entry includes a prompt, a small brave thing and a confidence check-in.',
+    'Mind vs. Truth sections and a confidence scale are built into the 80-day structure.',
+    'The journal includes 80 daily confidence challenges and an evidence locker.',
+    'Starting-point ratings, regular pause points and a final reflection are included.',
+    'Optional 4-7-8 breathing sits alongside the daily confidence practice.',
+    'Progress tracking and notes pages support the 80 daily entries.',
   ],
   kd_puzzle: [
-    'One puzzle a day is an easy way to keep your mind sharp.',
-    'Large print throughout, so solving stays relaxed rather than a squint.',
-    'A good way to spend downtime away from a screen and give your eyes a rest.',
-    'Finishing a grid and moving on to the next one is quietly satisfying.',
-    'Easy enough to dip into for ten minutes, meaty enough for a long evening.',
-    'Plenty of puzzles inside, so it lasts well beyond the first week.',
+    'The paperback contains 100 themed word-search puzzles and a full answer key.',
+    'A full answer key is included for checking the 100 completed puzzles.',
+    'All 100 word searches follow the theme shown on the cover.',
+    'The puzzles and full answer key are collected in one paperback.',
+    'The book contains 100 word-search puzzles.',
+    'The answer key is included in the book.',
   ],
   kd: [
-    'It makes a thoughtful gift for anyone who prefers paper to a screen.',
-    'Print, paper and a pen - no app, no battery, no notifications.',
-    'Small enough for a bag, sturdy enough to actually get used.',
-    'A simple thing done properly, which is the whole idea.',
+    'This is a physical paperback available from Amazon.',
+    'Published by K.D. Publishing as a paperback.',
+    'The Amazon listing contains the full product details.',
+    'This is a printed book rather than a digital download.',
   ],
   zb_christmas: [
-    'Plan gifts, food, travel and the little extras before festive spending gets away from you.',
-    'A clear Christmas budget makes it easier to enjoy December without carrying the cost into January.',
-    'Track what you planned, what you spent and what is still left to buy in one printable place.',
-    'The included savings challenges help you build your Christmas fund a little at a time.',
-    'Both UK A4 and US Letter versions are included, so you can print the format that suits you.',
-    'Keep gift ideas, purchase tracking and festive expenses together instead of scattered across notes.',
+    'The planner covers gifts, food, travel, clothing, decorations and other festive expenses.',
+    'It includes Christmas budgeting, savings goals, gift tracking, expense tracking and spending summaries.',
+    'Both UK A4 with pounds and US Letter with dollars PDF versions are included.',
+    'Six savings challenges are included alongside the planning pages.',
+    'Online-order, delivery and gift-wrapping trackers are included.',
+    'Post-Christmas spending and debt-payoff planning pages are included.',
   ],
   zb_debt: [
-    'Seeing every balance in one place makes the next payment easier to choose.',
-    'Compare the avalanche and snowball methods and use the approach that keeps you moving.',
-    'Track each payment and watch your total debt fall month by month.',
-    'A visual progress tracker turns a long payoff journey into clear milestones.',
-    'Built for UK households, with pounds, familiar debt types and practical examples.',
-    'Use the worked calculations to turn a vague goal into a step-by-step payoff plan.',
+    'The debt table records balances, interest rates, minimum payments and payoff dates.',
+    'Both Avalanche and Snowball payoff methods are explained.',
+    'A 36-month payment log covers 2026, 2027 and 2028.',
+    'A 100-block visual progress tracker is included.',
+    'The printable includes a worked UK example and Zero-Based Budget integration.',
+    'BNPL and Klarna guidance is included.',
   ],
   zb_budget: [
-    'Give every pound a job before the month begins and see exactly where your money is going.',
-    'Plan bills, spending, savings and debt in one reusable monthly system.',
-    'A worked UK example makes zero-based budgeting easier to start.',
-    'Sinking funds help spread the cost of Christmas, MOTs, holidays and emergencies.',
-    'Track planned versus actual spending so next month\'s budget gets more accurate.',
-    'Built for UK households, with pounds, familiar bills and an A4 layout.',
+    'The zero-based monthly budget compares planned and actual income, spending, savings and debt.',
+    'The 18-page planner includes bills, variable spending, savings and sinking-fund trackers.',
+    'A worked UK monthly-budget example is included.',
+    'Subscription, debt-snapshot, no-spend and net-worth pages are included.',
+    'The sinking-funds page covers Christmas, MOTs, holidays and emergencies.',
+    'The printable uses UK pounds and is formatted for A4 paper.',
   ],
   zb: [
-    'Starting from a ready-made template beats staring at a blank page.',
-    'It is an instant download, so you can be using it within minutes.',
-    'Get organised without signing up for yet another app or subscription.',
-    'A clean, printable layout that looks right on paper and on screen.',
-    'Made in the UK, with UK dates, spelling and currency.',
-    'Print the pages you need and keep the plan somewhere easy to see.',
+    'This is an instant digital download supplied as a printable PDF.',
+    'The pages are designed to be printed and filled in by hand.',
+    'No physical item is shipped.',
+    'The product is sold by ZeroBased UK on Etsy.',
+    'The PDF opens in a standard PDF viewer.',
+    'Print the relevant pages when they are needed.',
   ],
 };
 
@@ -78,10 +94,10 @@ function anglesFor(product, brand) {
   if (/puzzle|word ?search|sudoku|crossword|maze|activity|game/.test(haystack)) {
     return [...ANGLES.kd_puzzle, ...ANGLES.kd];
   }
-  if (/journal|diary|planner|gratitude|reflection|prompt/.test(haystack)) {
-    return [...ANGLES.kd_journal, ...ANGLES.kd];
-  }
-  return [...ANGLES.kd, ...ANGLES.kd_journal];
+  if (/calm|stress[- ]?relief/.test(haystack)) return [...ANGLES.kd_calm, ...ANGLES.kd];
+  if (/gratitude/.test(haystack)) return [...ANGLES.kd_gratitude, ...ANGLES.kd];
+  if (/confidence|self[- ]?belief/.test(haystack)) return [...ANGLES.kd_confidence, ...ANGLES.kd];
+  return ANGLES.kd;
 }
 
 const CTA = {
@@ -142,7 +158,7 @@ function inferKeywords(product, brand) {
   if (brand.id !== 'kd') {
     base = ['digital download', 'printable', 'etsy shop', 'instant download'];
   } else if (/puzzle|word ?search|sudoku|crossword|maze|activity|game/.test(haystack)) {
-    base = ['puzzle book', 'word search book', 'large print puzzles', 'kdp books'];
+    base = ['puzzle book', 'word search book', 'themed word searches', 'kdp books'];
   } else if (/journal|diary|planner|gratitude|reflection|prompt/.test(haystack)) {
     base = ['guided journal', 'daily journal', 'journal prompts', 'kdp books'];
   } else {
@@ -198,7 +214,8 @@ Rules:
 - Pinterest title: max 95 characters, readable, includes the main search term.
 - Description: 2 to 3 short sentences, max 400 characters, ending with 3-4 relevant hashtags.
 - Keywords: 6 to 8 lowercase Pinterest search phrases people would actually type.
-- Do not invent prices, review counts, awards or delivery claims.
+- Use only facts present in the product title, type, seller notes or supplied angle.
+- Do not invent prices, review counts, awards, benefits, audiences, specifications or delivery claims.
 
 Reply with JSON only, exactly this shape:
 {"title": "...", "description": "...", "keywords": ["...", "..."]}`;
