@@ -282,9 +282,14 @@ function wireProductDetail(root) {
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'image/*';
+      input.hidden = true;
+      document.body.appendChild(input);
       input.addEventListener('change', async () => {
         const file = input.files && input.files[0];
-        if (!file) return;
+        if (!file) {
+          input.remove();
+          return;
+        }
         const reader = new FileReader();
         reader.onload = async () => {
           try {
@@ -293,10 +298,17 @@ function wireProductDetail(root) {
             await refresh();
           } catch (err) {
             toast(err.message, true);
+          } finally {
+            input.remove();
           }
         };
+        reader.onerror = () => {
+          input.remove();
+          toast('Could not read that image.', true);
+        };
         reader.readAsDataURL(file);
-      });
+      }, { once: true });
+      input.addEventListener('cancel', () => input.remove(), { once: true });
       input.click();
     });
   });
