@@ -11,9 +11,9 @@ const copy = require('../src/copy');
 const kd = { id: 'kd', name: 'K.D. Publishing', marketplace: 'amazon', tagline: 'Books' };
 const zb = { id: 'zb', name: 'ZeroBased UK', marketplace: 'etsy', tagline: 'Digital' };
 
-const journal = { title: '80-Day Gratitude Journal', kind: 'Paperback journal', keywords: ['gratitude journal'], notes: 'Undated.' };
-const puzzle = { title: 'Large Print Word Search Vol. 1', kind: 'Puzzle book', keywords: ['word search book'], notes: '' };
-const digital = { title: 'Monthly Budget Planner Bundle', kind: 'Printable PDF', keywords: ['budget planner'], notes: '12 pages.' };
+const journal = { title: 'The 80-Day Gratitude Journal', kind: 'Paperback guided journal', keywords: ['gratitude journal'], notes: '80 daily gratitude prompts.' };
+const puzzle = { title: 'Halloween Word Search', kind: 'Paperback word-search puzzle book', keywords: ['Halloween word search'], notes: '100 puzzles with a full answer key.' };
+const digital = { title: 'UK Monthly Budget Planner', kind: 'Printable monthly budget planner', keywords: ['budget planner'], notes: '18-page A4 printable.' };
 
 test('a puzzle book is never described as a journal', () => {
   for (let variant = 0; variant < 12; variant += 1) {
@@ -72,6 +72,32 @@ test('a product with no keywords still produces usable copy', () => {
   assert.ok(text.keywords.length > 0);
 });
 
+test('audited copy does not add unsupported benefit or specification claims', () => {
+  const products = [journal, puzzle, digital];
+  for (const product of products) {
+    const brand = product === digital ? zb : kd;
+    for (let variant = 0; variant < 12; variant += 1) {
+      const text = copy.offlineCopy(product, brand, variant).description;
+      assert.doesNotMatch(text, /keep your mind sharp|large print|build a habit|actually finish|squint/i);
+    }
+  }
+});
+
+test('word-search copy uses cover-verified puzzle count and answer key', () => {
+  const text = copy.offlineCopy(puzzle, kd, 0).description;
+  assert.match(text, /100 themed word-search puzzles/i);
+  assert.match(text, /full answer key/i);
+});
+
+test('journal copy is matched to each verified interior', () => {
+  const calm = { title: 'The 80-Day Calm Journal', kind: 'Paperback guided journal', keywords: [], notes: '' };
+  const confidence = { title: 'The 80-Day Confidence Journal', kind: 'Paperback guided journal', keywords: [], notes: '' };
+
+  assert.match(copy.offlineCopy(calm, kd, 0).description, /daily check-ins.*brain-dump.*stress tracking/i);
+  assert.match(copy.offlineCopy(journal, kd, 0).description, /gratitude prompt.*check-in.*Brain Dump/i);
+  assert.match(copy.offlineCopy(confidence, kd, 0).description, /small brave thing.*confidence check-in/i);
+});
+
 test('generateCopy uses the built-in writer when paid AI mode is not enabled', async () => {
   const text = await copy.generateCopy(journal, kd, 0);
   assert.equal(text.source, 'offline');
@@ -86,7 +112,7 @@ test('ZeroBased UK copy matches Christmas, debt and monthly-budget products', ()
   const debt = { title: 'UK Debt Payoff Tracker', kind: 'Printable debt payoff tracker', keywords: [], notes: '' };
   const budget = { title: 'UK Monthly Budget Planner', kind: 'Printable monthly budget planner', keywords: [], notes: '' };
 
-  assert.match(copy.offlineCopy(christmas, zb, 0).description, /gifts|festive|Christmas/i);
-  assert.match(copy.offlineCopy(debt, zb, 0).description, /balance|debt|payment/i);
-  assert.match(copy.offlineCopy(budget, zb, 0).description, /pound|budget|money/i);
+  assert.match(copy.offlineCopy(christmas, zb, 0).description, /gifts.*food.*travel.*clothing.*decorations/i);
+  assert.match(copy.offlineCopy(debt, zb, 0).description, /balances.*interest rates.*minimum payments.*payoff dates/i);
+  assert.match(copy.offlineCopy(budget, zb, 0).description, /planned and actual income.*spending.*savings.*debt/i);
 });
