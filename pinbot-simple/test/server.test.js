@@ -173,3 +173,56 @@ test('signing out locks the dashboard again', async () => {
   const after = await call('/api/state');
   assert.equal(after.status, 401);
 });
+
+test('both brands start with usable board suggestions', async () => {
+  await call('/api/login', { method: 'POST', body: { password: 'test-password-123' } });
+  const state = await call('/api/state');
+  assert.ok(state.json.boards.kd.length >= 3, 'K.D. Publishing should have starter boards');
+  assert.ok(state.json.boards.zb.length >= 3, 'ZeroBased UK should have starter boards');
+});
+
+test('a pasted list imports in one go', async () => {
+  const before = db.products('zb').length;
+  const result = await call('/api/products/bulk', {
+    method: 'POST',
+    body: {
+      brandId: 'zb',
+      text: [
+        'Monthly Budget Planner | https://www.etsy.com/uk/listing/111/monthly-budget-planner',
+        'https://www.etsy.com/uk/listing/222/weekly-meal-planner-printable',
+        'https://www.etsy.com/uk/listing/333',
+        'this line has no link',
+      ].join('\n'),
+    },
+  });
+
+  assert.equal(result.status, 200);
+  assert.equal(result.json.created, 3);
+  assert.equal(result.json.needsName, 1, 'the id-only link should import paused');
+  assert.equal(result.json.skipped.length, 1);
+  assert.equal(db.products('zb').length, before + 3);
+
+  const unnamed = db.products('zb').find((p) => /needs a name/.test(p.title));
+  assert.equal(unnamed.active, false, 'a placeholder name must not be pinnable');
+});
+
+test('re-importing the same list does not create duplicates', async () => {
+  const before = db.products('zb').length;
+  const result = await call('/api/products/bulk', {
+    method: 'POST',
+    body: { brandId: 'zb', text: 'Monthly Budget Planner | https://www.etsy.com/uk/listing/111/monthly-budget-planner' },
+  });
+
+  assert.equal(result.json.created, 0);
+  assert.equal(result.json.alreadyThere.length, 1);
+  assert.equal(db.products('zb').length, before);
+});
+
+test('an imported placeholder product is never queued for posting', async () => {
+  const engine = require('../src/engine');
+  const unnamed = db.products('zb').find((p) => /needs a name/.test(p.title));
+  db.addImage(unnamed.id, { url: 'https://example.com/x.jpg' });
+
+  const created = await engine.planBrand(db, db.brand('zb'), new Date('2026-08-30T05:00:00Z'));
+  assert.ok(!created.some((pin) => pin.productId === unnamed.id), 'paused product must not be pinned');
+});

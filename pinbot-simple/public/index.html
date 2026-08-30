@@ -47,6 +47,21 @@
       <div id="product-list"></div>
     </div>
     <div class="card">
+      <h2>Add several at once</h2>
+      <p class="note">One product per line, as <b>Name | link</b>. A link on its own works too &mdash; it comes in paused so you can name it first.</p>
+      <form id="bulk-form">
+        <label class="field">Paste your products
+          <textarea id="bulk-text" rows="6" placeholder="80-Day Gratitude Journal | https://www.amazon.co.uk/dp/...&#10;Large Print Word Search Vol. 1 | https://www.amazon.co.uk/dp/..."></textarea>
+        </label>
+        <label class="field">Put them all on this board <small>(you can change each one later)</small>
+          <select id="bulk-board"></select>
+        </label>
+        <button type="submit">Import products</button>
+      </form>
+      <div class="note" id="bulk-result"></div>
+    </div>
+
+    <div class="card">
       <h2 id="product-form-title">Add a product</h2>
       <form id="product-form">
         <input type="hidden" id="product-id">

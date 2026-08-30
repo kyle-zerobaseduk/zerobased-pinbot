@@ -18,10 +18,11 @@ Products in → pins scheduled and rotated → Pinterest → Amazon/Etsy.
 |---|---|---|
 | Runtime dependencies | express, node-cron, dotenv, axios | express, node-cron |
 | Required env vars to boot | 4+ | 1 (`DASHBOARD_PASSWORD`) |
+| Setup before first pin | type every product | paste a list; boards pre-filled |
 | Behaviour with no Pinterest access | crashes / fails | runs in practice mode |
 | Data store | 6 JSON files | 1 JSON file, written atomically |
 | Corrupt data file | crash loop | parked, app restarts clean |
-| Automated tests | none | 33 |
+| Automated tests | none | 47 |
 
 ## Running it locally
 
@@ -40,7 +41,7 @@ Only the first is required.
 | Variable | Needed | What it does |
 |---|---|---|
 | `DASHBOARD_PASSWORD` | **yes** | The password for the dashboard |
-| `DATA_DIR` | on Railway | Where data lives. Use `/data` with a volume |
+| `DATA_DIR` | rarely | Only if the volume is not at `/data` or `/mnt/data`, which are found automatically |
 | `APP_URL` | for Pinterest | Public address, e.g. `https://pinbot.zerobaseduk.co.uk` |
 | `PINTEREST_APP_ID` | for Pinterest | From the Pinterest developer app |
 | `PINTEREST_APP_SECRET` | for Pinterest | From the Pinterest developer app |
@@ -62,6 +63,7 @@ pinbot-simple/
     db.js              the single JSON data file
     time.js            timezone maths (no date library)
     copy.js            pin copywriter: AI, with a built-in fallback
+    import.js          turns a pasted product list into records
     pinterest.js       Pinterest OAuth + v5 API
     engine.js          rotation, planning, posting, retries
     auth.js            password login and signed session cookie
@@ -69,7 +71,7 @@ pinbot-simple/
     routes/oauth.js    Pinterest connect / disconnect
   public/              the dashboard (plain HTML, CSS, JS - no build step)
   site/                the public K.D. Publishing page, served at /kd
-  test/                33 tests: node --test
+  test/                47 tests: node --test
 ```
 
 ## Safety rules built in

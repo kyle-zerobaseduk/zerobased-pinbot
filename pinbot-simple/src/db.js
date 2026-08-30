@@ -31,6 +31,25 @@ const DEFAULT_BRANDS = [
   },
 ];
 
+// Starter board names so products can be set up before Pinterest is connected.
+// They are replaced wholesale by the real boards once an account is linked.
+const STARTER_BOARDS = {
+  kd: ['Guided Journals', '80-Day Journals', 'Word Search Books', 'Puzzle Books', 'Gift Ideas for Book Lovers'],
+  zb: ['Digital Downloads', 'Printable Planners', 'Budgeting & Money', 'Small Business Templates'],
+};
+
+function starterBoards() {
+  const boards = {};
+  for (const [brandId, names] of Object.entries(STARTER_BOARDS)) {
+    boards[brandId] = names.map((name, index) => ({
+      id: `starter-${brandId}-${index + 1}`,
+      name,
+      manual: true,
+    }));
+  }
+  return boards;
+}
+
 function defaultData() {
   return {
     version: 1,
@@ -44,7 +63,7 @@ function defaultData() {
     brands: DEFAULT_BRANDS.map((b) => ({ ...b })),
     products: [],
     pins: [],
-    boards: {}, // brandId -> [{id, name}]
+    boards: starterBoards(), // brandId -> [{id, name}]; replaced by real Pinterest boards
     logs: [],
     oauthStates: [],
   };
@@ -101,6 +120,9 @@ class Db {
     }
     if (!Array.isArray(this.data.oauthStates)) this.data.oauthStates = [];
     if (!this.data.boards || typeof this.data.boards !== 'object') this.data.boards = {};
+    for (const [brandId, boards] of Object.entries(starterBoards())) {
+      if (!Array.isArray(this.data.boards[brandId])) this.data.boards[brandId] = boards;
+    }
   }
 
   // Write to a temp file then rename, so a crash mid-write cannot truncate the data.
@@ -268,7 +290,18 @@ class Db {
 
   setBoards(brandId, boards) {
     this.data.boards[brandId] = boards;
+
+    // Products pointing at a board that no longer exists would fail at post
+    // time with an unhelpful error, so surface them now instead.
+    const validIds = new Set(boards.map((b) => b.id));
+    const orphaned = this.products(brandId).filter((p) => p.boardId && !validIds.has(p.boardId));
+    for (const product of orphaned) product.boardId = '';
+    if (orphaned.length) {
+      this.log('warn', `${orphaned.length} product(s) need a board chosen again: ${orphaned.map((p) => p.title).join(', ')}`);
+    }
+
     this.save();
+    return orphaned;
   }
 
   boards(brandId) {
@@ -276,4 +309,4 @@ class Db {
   }
 }
 
-module.exports = { Db, newId, defaultData, DEFAULT_BRANDS };
+module.exports = { Db, newId, defaultData, starterBoards, DEFAULT_BRANDS, STARTER_BOARDS };

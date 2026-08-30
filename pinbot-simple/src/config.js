@@ -26,7 +26,24 @@ function loadDotEnv(file) {
 
 loadDotEnv(path.join(__dirname, '..', '.env'));
 
-const dataDir = path.resolve(process.env.DATA_DIR || path.join(__dirname, '..', 'data'));
+// Work out where data lives without needing to be told. A mounted Railway
+// volume at /data is used automatically, so DATA_DIR only has to be set when
+// the volume is somewhere unusual.
+function resolveDataDir() {
+  if (process.env.DATA_DIR) return path.resolve(process.env.DATA_DIR);
+
+  for (const candidate of ['/data', '/mnt/data']) {
+    try {
+      fs.accessSync(candidate, fs.constants.W_OK);
+      if (fs.statSync(candidate).isDirectory()) return candidate;
+    } catch (_) {
+      // not mounted here; try the next one
+    }
+  }
+  return path.join(__dirname, '..', 'data');
+}
+
+const dataDir = resolveDataDir();
 
 const config = {
   port: Number(process.env.PORT) || 3000,
@@ -48,6 +65,7 @@ const config = {
   },
 };
 
+config.dataDirSource = process.env.DATA_DIR ? 'DATA_DIR variable' : (dataDir.startsWith('/') && !dataDir.includes('pinbot-simple') ? 'mounted volume, found automatically' : 'local folder');
 config.pinterestConfigured = Boolean(config.pinterest.appId && config.pinterest.appSecret);
 config.aiConfigured = Boolean(config.anthropic.apiKey);
 config.redirectUri = config.appUrl ? `${config.appUrl}/oauth/pinterest/callback` : '';

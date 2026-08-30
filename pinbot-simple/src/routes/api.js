@@ -9,6 +9,7 @@ const config = require('../config');
 const auth = require('../auth');
 const copy = require('../copy');
 const engine = require('../engine');
+const importer = require('../import');
 const pinterest = require('../pinterest');
 const time = require('../time');
 
@@ -185,6 +186,46 @@ function buildRouter(db) {
     });
     db.log('info', `Product added: ${product.title}`);
     res.json(product);
+  });
+
+  // Add a whole catalogue from one pasted list.
+  router.post('/products/bulk', guard, (req, res) => {
+    if (!db.brand(req.body.brandId)) return res.status(400).json({ error: 'Choose a brand first.' });
+
+    const { items, skipped } = importer.parseList(req.body.text);
+    if (items.length === 0 && skipped.length === 0) {
+      return res.status(400).json({ error: 'Paste one product per line first.' });
+    }
+
+    const existing = new Set(db.products(req.body.brandId).map((p) => p.url));
+    const created = [];
+    const alreadyThere = [];
+
+    for (const item of items) {
+      if (existing.has(item.url)) {
+        alreadyThere.push(item.title);
+        continue;
+      }
+      existing.add(item.url);
+      created.push(db.addProduct({
+        brandId: req.body.brandId,
+        title: item.title,
+        url: item.url,
+        boardId: String(req.body.boardId || ''),
+        // A guessed placeholder name must never reach Pinterest unreviewed.
+        active: !item.needsName,
+      }));
+    }
+
+    const needsName = created.filter((p) => !p.active).length;
+    db.log('info', `Imported ${created.length} product(s)${needsName ? `, ${needsName} paused pending a proper name` : ''}.`);
+
+    res.json({
+      created: created.length,
+      needsName,
+      alreadyThere,
+      skipped,
+    });
   });
 
   router.patch('/products/:id', guard, (req, res) => {

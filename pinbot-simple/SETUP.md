@@ -35,16 +35,17 @@ Your products, images and pin history need somewhere permanent to live.
 
 ---
 
-## Stage 3 — Two settings (2 minutes)
+## Stage 3 — One setting (1 minute)
 
-Still in the new service, open **Variables** and add:
+Still in the new service, open **Variables** and add just this:
 
 | Name | Value |
 |---|---|
 | `DASHBOARD_PASSWORD` | a password you choose |
-| `DATA_DIR` | `/data` |
 
 Save. The service restarts on its own.
+
+> PinBot finds the `/data` volume by itself, so there is nothing else to set.
 
 Tap the generated URL. You should see the PinBot Simple login screen. Sign in
 with the password you just chose.
@@ -60,14 +61,22 @@ reaches Pinterest yet, which is exactly what we want while access is pending.
 For each book or digital product:
 
 1. Pick the brand at the top: **K.D. Publishing** or **ZeroBased UK**.
-2. Go to **Pinterest** tab → type your board names in "Add a board name".
-   (Real boards get pulled in automatically later; this just lets you get set
-   up now.)
-3. Go to **Products** → fill in the name, the Amazon or Etsy link, and pick a
-   board → **Save product**.
-4. Tap **Open** on the product → **Upload image**. Add two or three images per
+2. Go to **Products** → **Add several at once**. Paste one product per line:
+
+   ```
+   80-Day Gratitude Journal | https://www.amazon.co.uk/dp/...
+   Large Print Word Search Vol. 1 | https://www.amazon.co.uk/dp/...
+   ```
+
+   A bare link on its own line works too — it imports **paused** with a
+   placeholder name, so a guessed name can never be pinned. Rename it, then
+   tap **Resume**.
+3. Tap **Open** on each product → **Upload image**. Add two or three images per
    product so pins do not repeat the same picture.
-5. Tap **Preview pin text** to see what PinBot would write.
+4. Tap **Preview pin text** to see what PinBot would write.
+
+Board names for both brands are already filled in. Swap them for your real
+boards later, or edit them now in the **Pinterest** tab.
 
 Then go to **Queue** → **Refill the queue** and you will see the next few days
 of pins, rotating between your products.

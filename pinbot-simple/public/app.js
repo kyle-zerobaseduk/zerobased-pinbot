@@ -212,7 +212,9 @@ function renderProducts() {
           ${product.active ? '' : '<span class="pill warn">Paused</span> '}
           ${product.images.length} image${product.images.length === 1 ? '' : 's'}
           &middot; ${product.pinCount} pin${product.pinCount === 1 ? '' : 's'} sent
-          ${product.boardId ? `&middot; ${esc(boardName(product.boardId) || 'board set')}` : '&middot; no board'}
+          ${product.boardId
+            ? `&middot; ${boardName(product.boardId) ? esc(boardName(product.boardId)) : '<b style="color:var(--warn)">pick a board again</b>'}`
+            : '&middot; no board'}
         </div>
         <div class="btn-row" style="margin-top:8px">
           <button class="btn-sm" data-open="${product.id}">${open ? 'Close' : 'Open'}</button>
@@ -356,14 +358,41 @@ function wireProductDetail(root) {
 
 // ---------- product form ----------
 
-function renderProductForm() {
-  el('url-label').textContent = brand().marketplace === 'amazon' ? 'Amazon link' : 'Etsy link';
-  const select = el('product-board');
+function fillBoardSelect(select) {
   const current = select.value;
   select.innerHTML = '<option value="">— choose a board —</option>' +
     boardsForBrand().map((b) => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('');
   select.value = current;
 }
+
+function renderProductForm() {
+  el('url-label').textContent = brand().marketplace === 'amazon' ? 'Amazon link' : 'Etsy link';
+  fillBoardSelect(el('product-board'));
+  fillBoardSelect(el('bulk-board'));
+}
+
+el('bulk-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const box = el('bulk-result');
+  box.textContent = 'Importing…';
+  try {
+    const result = await api('/products/bulk', {
+      method: 'POST',
+      body: { brandId, text: el('bulk-text').value, boardId: el('bulk-board').value },
+    });
+
+    const lines = [`Added ${result.created} product${result.created === 1 ? '' : 's'}.`];
+    if (result.needsName) lines.push(`${result.needsName} came in paused because the link had no name in it — rename and resume those.`);
+    if (result.alreadyThere.length) lines.push(`Already had: ${result.alreadyThere.join(', ')}.`);
+    for (const skip of result.skipped) lines.push(`Skipped “${skip.line}” — ${skip.error}.`);
+
+    box.innerHTML = lines.map(esc).join('<br>');
+    if (result.created) el('bulk-text').value = '';
+    await refresh();
+  } catch (err) {
+    box.textContent = err.message;
+  }
+});
 
 function startEdit(id) {
   const product = state.products.find((p) => p.id === id);
