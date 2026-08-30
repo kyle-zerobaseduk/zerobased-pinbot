@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#10131a">
+<title>PinBot Simple</title>
+<link rel="stylesheet" href="/styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>📌</text></svg>">
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<section id="login" class="login hidden">
+  <div class="card">
+    <h1>📌 PinBot Simple</h1>
+    <p>Enter your dashboard password.</p>
+    <form id="login-form">
+      <input type="password" id="login-password" placeholder="Password" autocomplete="current-password" required>
+      <div style="height:10px"></div>
+      <button class="btn-primary" type="submit">Sign in</button>
+    </form>
+    <p id="login-error" class="note alert" style="margin-top:14px"></p>
+  </div>
+</section>
+
+<!-- ============ APP ============ -->
+<main id="app" class="wrap hidden">
+  <header>
+    <h1>📌 PinBot <span>Simple</span></h1>
+    <button class="btn-sm" id="sign-out">Sign out</button>
+  </header>
+
+  <div class="brand-switch" id="brand-switch"></div>
+
+  <div class="status-grid">
+    <div class="stat"><div class="k">Posting</div><div class="v" id="stat-posting">—</div></div>
+    <div class="stat"><div class="k">Mode</div><div class="v" id="stat-mode">—</div></div>
+    <div class="stat"><div class="k">Queued</div><div class="v" id="stat-queued">—</div></div>
+    <div class="stat"><div class="k">Next pin</div><div class="v" id="stat-next">—</div></div>
+  </div>
+
+  <!-- ---------- PRODUCTS ---------- -->
+  <section id="tab-products" class="tab">
+    <div class="card">
+      <h2>Products</h2>
+      <div id="product-list"></div>
+    </div>
+    <div class="card">
+      <h2 id="product-form-title">Add a product</h2>
+      <form id="product-form">
+        <input type="hidden" id="product-id">
+        <label class="field">Product name
+          <input id="product-title" placeholder="80-Day Gratitude Journal" required>
+        </label>
+        <label class="field"><span id="url-label">Amazon link</span>
+          <input id="product-url" type="url" placeholder="https://" required>
+        </label>
+        <label class="field">Type <small>(optional)</small>
+          <input id="product-kind" placeholder="Paperback journal">
+        </label>
+        <label class="field">Keywords <small>(comma separated, optional)</small>
+          <input id="product-keywords" placeholder="gratitude journal, daily journal">
+        </label>
+        <label class="field">Notes for the copywriter <small>(optional)</small>
+          <textarea id="product-notes" placeholder="Undated, one page per day, 6x9 inches."></textarea>
+        </label>
+        <label class="field">Pinterest board
+          <select id="product-board"></select>
+        </label>
+        <div class="btn-row">
+          <button class="btn-primary" type="submit" id="product-save">Save product</button>
+          <button type="button" id="product-cancel" class="hidden">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ---------- QUEUE ---------- -->
+  <section id="tab-queue" class="tab hidden">
+    <div class="card">
+      <h2>Coming up</h2>
+      <p class="note">PinBot fills your posting times automatically, rotating through your products.</p>
+      <div class="btn-row">
+        <button id="plan-now">Refill the queue</button>
+      </div>
+      <div id="queue-list"></div>
+    </div>
+    <div class="card">
+      <h2>Recent history</h2>
+      <div id="history-list"></div>
+    </div>
+  </section>
+
+  <!-- ---------- BOARDS ---------- -->
+  <section id="tab-boards" class="tab hidden">
+    <div class="card">
+      <h2>Pinterest connection</h2>
+      <div id="pinterest-status"></div>
+    </div>
+    <div class="card">
+      <h2>Boards</h2>
+      <p class="note">Pins go to the board you pick on each product. Before Pinterest is connected you can add board names by hand so everything else is ready.</p>
+      <div id="board-list"></div>
+      <form id="board-form" style="margin-top:12px">
+        <label class="field">Add a board name
+          <input id="board-name" placeholder="Guided Journals">
+        </label>
+        <button type="submit">Add board</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- ---------- SETTINGS ---------- -->
+  <section id="tab-settings" class="tab hidden">
+    <div class="card">
+      <h2>Automatic posting</h2>
+      <div class="row">
+        <div class="label">Automatic posting<small>Master switch for both brands</small></div>
+        <button class="toggle" id="toggle-paused"><i></i></button>
+      </div>
+      <div class="row">
+        <div class="label">Post for real<small>Off means practice runs only — nothing reaches Pinterest</small></div>
+        <button class="toggle" id="toggle-live"><i></i></button>
+      </div>
+      <div class="row">
+        <div class="label" id="brand-pause-label">This brand<small>Off pauses this brand only</small></div>
+        <button class="toggle" id="toggle-brand"><i></i></button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Posting times</h2>
+      <p class="note" id="slot-note"></p>
+      <div id="slot-list"></div>
+      <form id="slot-form" style="margin-top:10px">
+        <label class="field">Add a time (24 hour)
+          <input id="slot-input" type="time" value="09:00">
+        </label>
+        <button type="submit">Add time</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Limits</h2>
+      <label class="field">Most pins per brand per day
+        <input id="max-per-day" type="number" min="1" max="25">
+      </label>
+      <label class="field">Plan this many days ahead
+        <input id="plan-ahead" type="number" min="1" max="14">
+      </label>
+      <label class="field">Timezone
+        <input id="timezone" placeholder="Europe/London">
+      </label>
+      <button class="btn-primary" id="save-limits">Save</button>
+    </div>
+
+    <div class="card">
+      <h2>System</h2>
+      <div id="health"></div>
+    </div>
+  </section>
+
+  <!-- ---------- ACTIVITY ---------- -->
+  <section id="tab-activity" class="tab hidden">
+    <div class="card">
+      <h2>Activity</h2>
+      <div class="log" id="log-list"></div>
+    </div>
+  </section>
+</main>
+
+<nav class="tabs hidden" id="tabs">
+  <button data-tab="products"><span class="glyph">📚</span>Products</button>
+  <button data-tab="queue"><span class="glyph">🗓</span>Queue</button>
+  <button data-tab="boards"><span class="glyph">📌</span>Pinterest</button>
+  <button data-tab="settings"><span class="glyph">⚙️</span>Settings</button>
+  <button data-tab="activity"><span class="glyph">📋</span>Activity</button>
+</nav>
+
+<script src="/app.js"></script>
+</body>
+</html>

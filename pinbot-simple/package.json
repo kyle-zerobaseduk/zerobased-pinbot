@@ -1,0 +1,19 @@
+{
+  "name": "pinbot-simple",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PinBot Simple - a small, reliable Pinterest scheduler for K.D. Publishing (Amazon KDP) and ZeroBased UK (Etsy).",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "node-cron": "^3.0.3"
+  }
+}
