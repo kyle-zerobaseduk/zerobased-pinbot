@@ -4,8 +4,6 @@ const config = require('./config');
 
 // Rotating angles keep repeat pins for the same product from reading identically.
 // Each angle is a complete sentence, so the offline writer never has to glue
-// fragments together and produce awkward grammar.
-// Each angle is a complete sentence, so the offline writer never has to glue
 // fragments together and produce awkward grammar. K.D. Publishing sells two
 // quite different things, so its angles are split by product type - a puzzle
 // book should never be described as a journal.
@@ -32,23 +30,51 @@ const ANGLES = {
     'Small enough for a bag, sturdy enough to actually get used.',
     'A simple thing done properly, which is the whole idea.',
   ],
+  zb_christmas: [
+    'Plan gifts, food, travel and the little extras before festive spending gets away from you.',
+    'A clear Christmas budget makes it easier to enjoy December without carrying the cost into January.',
+    'Track what you planned, what you spent and what is still left to buy in one printable place.',
+    'The included savings challenges help you build your Christmas fund a little at a time.',
+    'Both UK A4 and US Letter versions are included, so you can print the format that suits you.',
+    'Keep gift ideas, purchase tracking and festive expenses together instead of scattered across notes.',
+  ],
+  zb_debt: [
+    'Seeing every balance in one place makes the next payment easier to choose.',
+    'Compare the avalanche and snowball methods and use the approach that keeps you moving.',
+    'Track each payment and watch your total debt fall month by month.',
+    'A visual progress tracker turns a long payoff journey into clear milestones.',
+    'Built for UK households, with pounds, familiar debt types and practical examples.',
+    'Use the worked calculations to turn a vague goal into a step-by-step payoff plan.',
+  ],
+  zb_budget: [
+    'Give every pound a job before the month begins and see exactly where your money is going.',
+    'Plan bills, spending, savings and debt in one reusable monthly system.',
+    'A worked UK example makes zero-based budgeting easier to start.',
+    'Sinking funds help spread the cost of Christmas, MOTs, holidays and emergencies.',
+    'Track planned versus actual spending so next month\'s budget gets more accurate.',
+    'Built for UK households, with pounds, familiar bills and an A4 layout.',
+  ],
   zb: [
     'Starting from a ready-made template beats staring at a blank page.',
     'It is an instant download, so you can be using it within minutes.',
     'Get organised without signing up for yet another app or subscription.',
     'A clean, printable layout that looks right on paper and on screen.',
-    'Set the system up once and you will actually keep using it.',
-    'One small purchase that tidies up a whole messy process.',
     'Made in the UK, with UK dates, spelling and currency.',
-    'Edit it once and reuse it every single month.',
+    'Print the pages you need and keep the plan somewhere easy to see.',
   ],
 };
 
 // K.D. Publishing covers journals and puzzle books; pick the matching voice.
 function anglesFor(product, brand) {
+  const haystack = `${product.title} ${product.kind || ''}`.toLowerCase();
+  if (brand.id === 'zb') {
+    if (/christmas|festive|gift/.test(haystack)) return [...ANGLES.zb_christmas, ...ANGLES.zb];
+    if (/debt|payoff|snowball|avalanche/.test(haystack)) return [...ANGLES.zb_debt, ...ANGLES.zb];
+    if (/budget|money|finance|planner/.test(haystack)) return [...ANGLES.zb_budget, ...ANGLES.zb];
+    return ANGLES.zb;
+  }
   if (brand.id !== 'kd') return ANGLES[brand.id] || ANGLES.zb;
 
-  const haystack = `${product.title} ${product.kind || ''}`.toLowerCase();
   if (/puzzle|word ?search|sudoku|crossword|maze|activity|game/.test(haystack)) {
     return [...ANGLES.kd_puzzle, ...ANGLES.kd];
   }
