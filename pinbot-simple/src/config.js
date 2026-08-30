@@ -62,12 +62,15 @@ const config = {
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY || '',
     model: process.env.AI_MODEL || 'claude-haiku-4-5-20251001',
+    // The built-in writer is deliberately the default. A leftover or invalid
+    // key must not trigger paid API calls unless AI mode is explicitly chosen.
+    enabled: String(process.env.AI_COPYWRITER_MODE || '').trim().toLowerCase() === 'anthropic',
   },
 };
 
 config.dataDirSource = process.env.DATA_DIR ? 'DATA_DIR variable' : (dataDir.startsWith('/') && !dataDir.includes('pinbot-simple') ? 'mounted volume, found automatically' : 'local folder');
 config.pinterestConfigured = Boolean(config.pinterest.appId && config.pinterest.appSecret);
-config.aiConfigured = Boolean(config.anthropic.apiKey);
+config.aiConfigured = Boolean(config.anthropic.enabled && config.anthropic.apiKey);
 config.redirectUri = config.appUrl ? `${config.appUrl}/oauth/pinterest/callback` : '';
 
 module.exports = config;
