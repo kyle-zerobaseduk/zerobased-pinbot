@@ -5,7 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const config = require('./config');
 
-const SCOPES = ['boards:read', 'pins:read', 'pins:write', 'user_accounts:read'];
+const SCOPES = ['boards:read', 'boards:write', 'pins:read', 'pins:write', 'user_accounts:read'];
 
 function basicAuthHeader() {
   const raw = `${config.pinterest.appId}:${config.pinterest.appSecret}`;
