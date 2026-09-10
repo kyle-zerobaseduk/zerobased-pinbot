@@ -23,8 +23,12 @@ function buildAuthUrl(state) {
   return `${config.pinterest.authBase}/?${params.toString()}`;
 }
 
-async function tokenRequest(body) {
-  const response = await fetch(`${config.pinterest.apiBase}/oauth/token`, {
+function apiBase(environment = 'production') {
+  return environment === 'sandbox' ? config.pinterest.sandboxApiBase : config.pinterest.apiBase;
+}
+
+async function tokenRequest(body, environment = 'production') {
+  const response = await fetch(`${apiBase(environment)}/oauth/token`, {
     method: 'POST',
     headers: {
       Authorization: basicAuthHeader(),
@@ -52,23 +56,23 @@ function connectionFromToken(token, extra = {}) {
   };
 }
 
-async function exchangeCode(code) {
+async function exchangeCode(code, environment = 'production') {
   const token = await tokenRequest({
     grant_type: 'authorization_code',
     code,
     redirect_uri: config.redirectUri,
-  });
+  }, environment);
   return connectionFromToken(token);
 }
 
-async function refreshConnection(connection) {
+async function refreshConnection(connection, environment = 'production') {
   if (!connection.refreshToken) {
     throw new Error('No refresh token stored - reconnect this Pinterest account.');
   }
   const token = await tokenRequest({
     grant_type: 'refresh_token',
     refresh_token: connection.refreshToken,
-  });
+  }, environment);
   return connectionFromToken(token, {
     // Pinterest does not always return a new refresh token; keep the old one.
     refreshToken: token.refresh_token || connection.refreshToken,
@@ -81,8 +85,8 @@ function isExpired(connection) {
   return !connection.expiresAt || new Date(connection.expiresAt).getTime() <= Date.now();
 }
 
-async function apiRequest(connection, endpoint, options = {}) {
-  const response = await fetch(`${config.pinterest.apiBase}${endpoint}`, {
+async function apiRequest(connection, endpoint, options = {}, environment = 'production') {
+  const response = await fetch(`${apiBase(environment)}${endpoint}`, {
     ...options,
     headers: {
       Authorization: `Bearer ${connection.accessToken}`,
@@ -101,25 +105,26 @@ async function apiRequest(connection, endpoint, options = {}) {
 
   if (!response.ok) {
     const message = payload?.message || payload?.error_description || text.slice(0, 300);
-    const err = new Error(`Pinterest API ${response.status}: ${message}`);
+    const label = environment === 'sandbox' ? 'Pinterest Sandbox API' : 'Pinterest API';
+    const err = new Error(`${label} ${response.status}: ${message}`);
     err.status = response.status;
     throw err;
   }
   return payload;
 }
 
-async function getAccount(connection) {
-  const data = await apiRequest(connection, '/user_account');
+async function getAccount(connection, environment = 'production') {
+  const data = await apiRequest(connection, '/user_account', {}, environment);
   return { username: data.username || '', accountId: data.id || '', accountType: data.account_type || '' };
 }
 
-async function getBoards(connection) {
+async function getBoards(connection, environment = 'production') {
   const boards = [];
   let bookmark = '';
   do {
     const query = new URLSearchParams({ page_size: '100' });
     if (bookmark) query.set('bookmark', bookmark);
-    const data = await apiRequest(connection, `/boards?${query.toString()}`);
+    const data = await apiRequest(connection, `/boards?${query.toString()}`, {}, environment);
     for (const board of data.items || []) {
       boards.push({ id: board.id, name: board.name, privacy: board.privacy || '' });
     }
@@ -150,7 +155,7 @@ function mediaSource(image) {
   throw new Error('Pin has no image attached.');
 }
 
-async function createPin(connection, pin, image) {
+async function createPin(connection, pin, image, environment = 'production') {
   const body = {
     board_id: pin.boardId,
     title: (pin.title || '').slice(0, 100),
@@ -158,11 +163,23 @@ async function createPin(connection, pin, image) {
     link: pin.link,
     media_source: mediaSource(image),
   };
-  const data = await apiRequest(connection, '/pins', { method: 'POST', body: JSON.stringify(body) });
+  const data = await apiRequest(connection, '/pins', { method: 'POST', body: JSON.stringify(body) }, environment);
   return {
     id: data.id,
     url: data.id ? `https://www.pinterest.com/pin/${data.id}/` : null,
   };
+}
+
+async function createBoard(connection, name, environment = 'production') {
+  const data = await apiRequest(connection, '/boards', {
+    method: 'POST',
+    body: JSON.stringify({ name, privacy: 'PUBLIC' }),
+  }, environment);
+  return { id: data.id, name: data.name || name, privacy: data.privacy || 'PUBLIC' };
+}
+
+async function getPin(connection, pinId, environment = 'production') {
+  return apiRequest(connection, `/pins/${encodeURIComponent(pinId)}`, {}, environment);
 }
 
 // Used when Pinterest is not connected yet, or the user has left simulation on.
@@ -177,12 +194,15 @@ function simulateCreatePin() {
 
 module.exports = {
   SCOPES,
+  apiBase,
   buildAuthUrl,
   exchangeCode,
   refreshConnection,
   isExpired,
   getAccount,
   getBoards,
+  createBoard,
+  getPin,
   createPin,
   simulateCreatePin,
   mediaSource,

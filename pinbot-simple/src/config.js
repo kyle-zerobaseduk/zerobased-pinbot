@@ -57,6 +57,7 @@ const config = {
     appId: process.env.PINTEREST_APP_ID || '',
     appSecret: process.env.PINTEREST_APP_SECRET || '',
     apiBase: process.env.PINTEREST_API_BASE || 'https://api.pinterest.com/v5',
+    sandboxApiBase: process.env.PINTEREST_SANDBOX_API_BASE || 'https://api-sandbox.pinterest.com/v5',
     authBase: process.env.PINTEREST_AUTH_BASE || 'https://www.pinterest.com/oauth',
   },
   anthropic: {
