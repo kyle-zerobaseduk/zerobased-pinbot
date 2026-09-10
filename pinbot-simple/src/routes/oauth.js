@@ -28,8 +28,8 @@ function page(title, body) {
 function buildRouter(db) {
   const router = express.Router();
 
-  // Start the Pinterest login. Signed-in dashboard users only.
-  router.get('/pinterest/start/:brandId', (req, res) => {
+  function startLogin(environment) {
+    return (req, res) => {
     if (!auth.isAuthed(db, req)) return res.redirect('/');
 
     const brand = db.brand(req.params.brandId);
@@ -46,14 +46,31 @@ function buildRouter(db) {
       );
     }
 
+    if (environment === 'sandbox' && !brand.pinterest?.username) {
+      return res.status(400).send(
+        page('Connect production first', '<p>The Sandbox account must match the existing Pinterest connection for this brand.</p>')
+      );
+    }
+
     const state = crypto.randomBytes(16).toString('hex');
     db.data.oauthStates = db.data.oauthStates
       .filter((s) => Date.now() - s.at < STATE_TTL_MS)
-      .concat({ state, brandId: brand.id, at: Date.now() });
+      .concat({
+        state,
+        brandId: brand.id,
+        environment,
+        expectedUsername: environment === 'sandbox' ? brand.pinterest.username : '',
+        at: Date.now(),
+      });
     db.save();
 
     res.redirect(pinterest.buildAuthUrl(state));
-  });
+    };
+  }
+
+  // Production and Sandbox credentials are deliberately started and stored separately.
+  router.get('/pinterest/start/:brandId', startLogin('production'));
+  router.get('/pinterest/sandbox/start/:brandId', startLogin('sandbox'));
 
   // Pinterest sends the user back here with a one-time code.
   router.get('/pinterest/callback', async (req, res) => {
@@ -76,8 +93,33 @@ function buildRouter(db) {
     if (!brand) return res.status(404).send(page('Unknown brand', '<p>That brand does not exist.</p>'));
 
     try {
-      const connection = await pinterest.exchangeCode(String(code));
-      const account = await pinterest.getAccount(connection);
+      const environment = record.environment === 'sandbox' ? 'sandbox' : 'production';
+      const connection = await pinterest.exchangeCode(String(code), environment);
+      const account = await pinterest.getAccount(connection, environment);
+
+      if (
+        environment === 'sandbox' &&
+        record.expectedUsername &&
+        account.username.toLowerCase() !== record.expectedUsername.toLowerCase()
+      ) {
+        throw new Error(`Sandbox account @${account.username} does not match @${record.expectedUsername}.`);
+      }
+
+      if (environment === 'sandbox') {
+        brand.pinterestSandbox = { ...connection, ...account };
+        try {
+          brand.pinterestSandboxBoards = await pinterest.getBoards(brand.pinterestSandbox, 'sandbox');
+        } catch (boardErr) {
+          brand.pinterestSandboxBoards = [];
+          db.log('warn', `Sandbox connected, but could not load Sandbox boards yet: ${boardErr.message}`);
+        }
+        db.save();
+        db.log('info', `Connected Pinterest Sandbox account @${account.username} to ${brand.name}.`);
+        return res.send(
+          page(`Sandbox connected to @${account.username}`, `<p>${brand.name} now has a separate Pinterest Sandbox token.</p>`)
+        );
+      }
+
       brand.pinterest = { ...connection, ...account };
       db.save();
       db.log('info', `Connected Pinterest account @${account.username} to ${brand.name}.`);

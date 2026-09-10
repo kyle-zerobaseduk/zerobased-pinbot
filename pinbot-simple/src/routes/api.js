@@ -24,6 +24,7 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 // Never let access tokens reach the browser.
 function publicBrand(brand) {
   const connection = brand.pinterest;
+  const sandboxConnection = brand.pinterestSandbox;
   return {
     id: brand.id,
     name: brand.name,
@@ -38,6 +39,14 @@ function publicBrand(brand) {
           username: connection.username || '',
           connectedAt: connection.connectedAt || null,
           expiresAt: connection.expiresAt || null,
+        }
+      : { connected: false },
+    pinterestSandbox: sandboxConnection
+      ? {
+          connected: true,
+          username: sandboxConnection.username || '',
+          connectedAt: sandboxConnection.connectedAt || null,
+          expiresAt: sandboxConnection.expiresAt || null,
         }
       : { connected: false },
   };
@@ -346,6 +355,137 @@ function buildRouter(db) {
     if (!pin) return res.status(404).json({ error: 'Pin not found.' });
     db.updatePin(pin.id, { status: 'queued', attempts: 0, error: null, scheduledFor: new Date().toISOString() });
     res.json(await engine.postPin(db, db.pin(pin.id)));
+  });
+
+  // A Trial-access production 403 turns an existing Practice record back into a queued retry.
+  // Cancel only that exact retry while retaining the record and its error as audit history.
+  router.post('/pins/:id/cancel-trial-retry', guard, (req, res) => {
+    const pin = db.pin(req.params.id);
+    if (!pin) return res.status(404).json({ error: 'Pin not found.' });
+    const isTrialRetry = pin.status === 'queued' && pin.attempts === 1 &&
+      String(pin.error || '').includes('Apps with Trial access may not create Pins in production') &&
+      String(pin.pinterestPinId || '').startsWith('sim-') && Boolean(pin.postedAt);
+    if (!isTrialRetry) {
+      return res.status(409).json({ error: 'This is not the uniquely identifiable Trial-access retry.' });
+    }
+    const cancelledAt = new Date().toISOString();
+    db.updatePin(pin.id, { status: 'simulated', retryCancelledAt: cancelledAt });
+    db.log('info', `Cancelled the failed Trial production retry for "${pin.title}"; Practice history was kept.`);
+    res.json(db.pin(pin.id));
+  });
+
+  async function sandboxConnection(brand) {
+    if (!brand.pinterestSandbox?.accessToken) return null;
+    if (!pinterest.isExpired(brand.pinterestSandbox)) return brand.pinterestSandbox;
+    const refreshed = await pinterest.refreshConnection(brand.pinterestSandbox, 'sandbox');
+    brand.pinterestSandbox = { ...brand.pinterestSandbox, ...refreshed };
+    db.save();
+    return brand.pinterestSandbox;
+  }
+
+  router.get('/sandbox/brands/:brandId/status', guard, async (req, res) => {
+    const brand = db.brand(req.params.brandId);
+    if (!brand) return res.status(404).json({ error: 'Unknown brand.' });
+    const connection = await sandboxConnection(brand);
+    if (!connection) return res.status(400).json({ error: 'Connect this brand to Pinterest Sandbox first.' });
+    try {
+      const account = await pinterest.getAccount(connection, 'sandbox');
+      const boards = await pinterest.getBoards(connection, 'sandbox');
+      brand.pinterestSandbox = { ...connection, ...account };
+      brand.pinterestSandboxBoards = boards;
+      db.save();
+      res.json({ connected: true, account, boards });
+    } catch (err) {
+      res.status(502).json({ error: err.message });
+    }
+  });
+
+  // This endpoint never reads the queue and never uses the production API host or token.
+  router.post('/pins/:id/sandbox-test', guard, async (req, res) => {
+    if (!db.data.settings.paused || db.data.settings.liveMode) {
+      return res.status(409).json({ error: 'Sandbox tests require global Posting PAUSED and PRACTICE mode ON.' });
+    }
+
+    const pin = db.pin(req.params.id);
+    if (!pin) return res.status(404).json({ error: 'Pin not found.' });
+    if (pin.status === 'posted') return res.status(409).json({ error: 'A production-posted record cannot be used for a Sandbox test.' });
+    if (pin.sandboxTest?.id) {
+      return res.status(409).json({ error: `This record already created Sandbox Pin ${pin.sandboxTest.id}.` });
+    }
+
+    const product = db.product(pin.productId);
+    const image = product?.images.find((item) => item.id === pin.imageId);
+    const brand = db.brand(pin.brandId);
+    if (!brand || !product || !image?.file) {
+      return res.status(409).json({ error: 'The controlled record needs its existing local product image.' });
+    }
+
+    const expected = req.body.expected || {};
+    const required = ['accountUsername', 'productTitle', 'productionBoardId', 'title', 'description', 'link', 'imageSha256', 'sandboxBoardName'];
+    const missing = required.filter((key) => typeof expected[key] !== 'string' || !expected[key]);
+    if (missing.length) return res.status(400).json({ error: `Missing expected fields: ${missing.join(', ')}` });
+
+    const filePath = path.join(config.uploadsDir, path.basename(image.file));
+    if (!fs.existsSync(filePath)) return res.status(409).json({ error: 'The controlled image file is missing.' });
+    const imageSha256 = crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+    const differences = [];
+    const match = (field, actual, wanted) => {
+      if (actual !== wanted) differences.push({ field, actual, expected: wanted });
+    };
+    match('Pinterest account', brand.pinterest?.username || '', expected.accountUsername);
+    match('Product', product.title, expected.productTitle);
+    match('Production board ID', pin.boardId, expected.productionBoardId);
+    match('Title', pin.title, expected.title);
+    match('Description', pin.description, expected.description);
+    match('Destination', pin.link, expected.link);
+    match('Image SHA-256', imageSha256, expected.imageSha256.toLowerCase());
+    if (differences.length) return res.status(409).json({ error: 'Controlled record does not match.', differences });
+
+    const connection = await sandboxConnection(brand);
+    if (!connection) return res.status(400).json({ error: 'Connect this brand to Pinterest Sandbox first.' });
+
+    try {
+      const account = await pinterest.getAccount(connection, 'sandbox');
+      if (account.username.toLowerCase() !== expected.accountUsername.toLowerCase()) {
+        return res.status(409).json({ error: `Sandbox is connected as @${account.username}, not @${expected.accountUsername}.` });
+      }
+
+      let boards = await pinterest.getBoards(connection, 'sandbox');
+      let sandboxBoard = boards.find((item) => item.name === expected.sandboxBoardName);
+      let boardCreated = false;
+      if (!sandboxBoard) {
+        sandboxBoard = await pinterest.createBoard(connection, expected.sandboxBoardName, 'sandbox');
+        boards = [...boards, sandboxBoard];
+        boardCreated = true;
+      }
+      brand.pinterestSandboxBoards = boards;
+      db.save();
+
+      const result = await pinterest.createPin(connection, { ...pin, boardId: sandboxBoard.id }, image, 'sandbox');
+      db.updatePin(pin.id, {
+        sandboxTest: {
+          id: result.id,
+          url: result.url,
+          boardId: sandboxBoard.id,
+          boardName: sandboxBoard.name,
+          createdAt: new Date().toISOString(),
+        },
+      });
+      const verified = await pinterest.getPin(connection, result.id, 'sandbox');
+      db.log('info', `Created one Pinterest Sandbox Pin for "${pin.title}" (${brand.name}); production was untouched.`);
+      res.json({
+        environment: 'sandbox',
+        boardCreated,
+        account,
+        board: sandboxBoard,
+        imageSha256,
+        result,
+        verified,
+      });
+    } catch (err) {
+      db.log('error', `Pinterest Sandbox test failed: ${err.message}`);
+      res.status(502).json({ error: err.message });
+    }
   });
 
   router.delete('/pins/:id', guard, (req, res) => {
