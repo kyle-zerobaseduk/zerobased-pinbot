@@ -214,6 +214,7 @@ test('production boards are fetched for the selector without persisting the API 
     username: 'kdpublishingkyle',
     accessToken: 'production-token',
     expiresAt: new Date(Date.now() + 86400000).toISOString(),
+    scopes: pinterest.PRODUCTION_SCOPES.join(','),
   };
   db.data.boards.kd = [];
   db.save();

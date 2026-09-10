@@ -252,6 +252,41 @@ test('an individually approved draft becomes scheduler-eligible in simulation on
   }
 });
 
+test('a working production connection with legacy extra scopes is reduced on refresh', async () => {
+  const db = freshDb();
+  const brand = db.brand('kd');
+  brand.pinterest = {
+    accessToken: 'old-access',
+    refreshToken: 'refresh',
+    expiresAt: new Date(Date.now() + 86400000).toISOString(),
+    scopes: 'boards:read boards:write pins:read pins:write user_accounts:read',
+    username: 'kdpub',
+  };
+
+  const originalRefresh = pinterest.refreshConnection;
+  let calls = 0;
+  pinterest.refreshConnection = async (connection, environment) => {
+    calls += 1;
+    assert.equal(connection.accessToken, 'old-access');
+    assert.equal(environment, undefined);
+    return {
+      accessToken: 'reduced-access',
+      refreshToken: 'refresh-2',
+      expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      scopes: pinterest.PRODUCTION_SCOPES.join(','),
+      username: 'kdpub',
+    };
+  };
+  try {
+    const connection = await engine.liveConnection(db, brand);
+    assert.equal(calls, 1);
+    assert.equal(connection.accessToken, 'reduced-access');
+    assert.equal(connection.scopes, 'boards:read,pins:write,user_accounts:read');
+  } finally {
+    pinterest.refreshConnection = originalRefresh;
+  }
+});
+
 test('migration marks legacy drafts unapproved and drops unnecessary Pinterest response data', () => {
   const file = path.join(tmp, 'legacy.json');
   const legacy = freshDb().data;

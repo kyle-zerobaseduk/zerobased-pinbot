@@ -122,12 +122,13 @@ async function planAll(db, now = new Date()) {
 async function liveConnection(db, brand) {
   const connection = brand.pinterest;
   if (!connection || !connection.accessToken) return null;
-  if (!pinterest.isExpired(connection)) return connection;
+  const reducingScopes = !pinterest.hasExactScopes(connection, 'production');
+  if (!pinterest.isExpired(connection) && !reducingScopes) return connection;
 
   const refreshed = await pinterest.refreshConnection(connection);
   brand.pinterest = { ...connection, ...refreshed };
   db.save();
-  db.log('info', `Refreshed Pinterest token for ${brand.name}.`);
+  db.log('info', `${reducingScopes ? 'Reduced and refreshed' : 'Refreshed'} Pinterest token for ${brand.name}.`);
   return brand.pinterest;
 }
 

@@ -12,6 +12,12 @@ function scopesFor(environment = 'production') {
   return environment === 'sandbox' ? SANDBOX_SCOPES : PRODUCTION_SCOPES;
 }
 
+function hasExactScopes(connection, environment = 'production') {
+  const granted = new Set(String(connection?.scopes || '').split(/[\s,]+/).filter(Boolean));
+  const expected = new Set(scopesFor(environment));
+  return granted.size === expected.size && [...expected].every((scope) => granted.has(scope));
+}
+
 function basicAuthHeader() {
   const raw = `${config.pinterest.appId}:${config.pinterest.appSecret}`;
   return `Basic ${Buffer.from(raw).toString('base64')}`;
@@ -203,6 +209,7 @@ module.exports = {
   PRODUCTION_SCOPES,
   SANDBOX_SCOPES,
   scopesFor,
+  hasExactScopes,
   apiBase,
   buildAuthUrl,
   exchangeCode,
