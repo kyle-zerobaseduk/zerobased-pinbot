@@ -64,7 +64,7 @@ function buildRouter(db) {
       });
     db.save();
 
-    res.redirect(pinterest.buildAuthUrl(state));
+    res.redirect(pinterest.buildAuthUrl(state, environment));
     };
   }
 
@@ -107,12 +107,6 @@ function buildRouter(db) {
 
       if (environment === 'sandbox') {
         brand.pinterestSandbox = { ...connection, ...account };
-        try {
-          brand.pinterestSandboxBoards = await pinterest.getBoards(brand.pinterestSandbox, 'sandbox');
-        } catch (boardErr) {
-          brand.pinterestSandboxBoards = [];
-          db.log('warn', `Sandbox connected, but could not load Sandbox boards yet: ${boardErr.message}`);
-        }
         db.save();
         db.log('info', `Connected Pinterest Sandbox account @${account.username} to ${brand.name}.`);
         return res.send(
@@ -123,14 +117,6 @@ function buildRouter(db) {
       brand.pinterest = { ...connection, ...account };
       db.save();
       db.log('info', `Connected Pinterest account @${account.username} to ${brand.name}.`);
-
-      // Boards are what the dashboard needs next, so fetch them straight away.
-      try {
-        const boards = await pinterest.getBoards(brand.pinterest);
-        db.setBoards(brand.id, boards);
-      } catch (boardErr) {
-        db.log('warn', `Connected, but could not load boards yet: ${boardErr.message}`);
-      }
 
       return res.send(
         page(`Connected to @${account.username}`, `<p>${brand.name} is now linked to Pinterest.</p>`)

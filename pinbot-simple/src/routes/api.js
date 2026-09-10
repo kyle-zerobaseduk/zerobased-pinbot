@@ -330,7 +330,8 @@ function buildRouter(db) {
       scheduledFor: new Date().toISOString(),
     });
 
-    res.json(await engine.postPin(db, pin));
+    db.log('info', `Prepared draft "${pin.title}" for individual review; it is not approved.`);
+    res.json(pin);
   });
 
   router.patch('/pins/:id', guard, (req, res) => {
@@ -347,14 +348,45 @@ function buildRouter(db) {
       if (Number.isNaN(when.getTime())) return res.status(400).json({ error: 'That date is not valid.' });
       patch.scheduledFor = when.toISOString();
     }
+    if (Object.keys(patch).length) {
+      patch.approvedForPublishing = false;
+      patch.approvedAt = null;
+    }
     res.json(db.updatePin(pin.id, patch));
   });
 
-  router.post('/pins/:id/retry', guard, async (req, res) => {
+  router.post('/pins/:id/approve', guard, (req, res) => {
     const pin = db.pin(req.params.id);
     if (!pin) return res.status(404).json({ error: 'Pin not found.' });
-    db.updatePin(pin.id, { status: 'queued', attempts: 0, error: null, scheduledFor: new Date().toISOString() });
-    res.json(await engine.postPin(db, db.pin(pin.id)));
+    if (pin.status !== 'queued') return res.status(409).json({ error: 'Only a queued draft can be approved.' });
+    const approvedAt = new Date().toISOString();
+    db.updatePin(pin.id, { approvedForPublishing: true, approvedAt });
+    db.log('info', `Individually approved draft "${pin.title}".`);
+    res.json(db.pin(pin.id));
+  });
+
+  router.post('/pins/:id/unapprove', guard, (req, res) => {
+    const pin = db.pin(req.params.id);
+    if (!pin) return res.status(404).json({ error: 'Pin not found.' });
+    if (pin.status !== 'queued') return res.status(409).json({ error: 'Only a queued draft can be changed.' });
+    db.updatePin(pin.id, { approvedForPublishing: false, approvedAt: null });
+    db.log('info', `Withdrew approval for draft "${pin.title}".`);
+    res.json(db.pin(pin.id));
+  });
+
+  router.post('/pins/:id/retry', guard, (req, res) => {
+    const pin = db.pin(req.params.id);
+    if (!pin) return res.status(404).json({ error: 'Pin not found.' });
+    db.updatePin(pin.id, {
+      status: 'queued',
+      attempts: 0,
+      error: null,
+      scheduledFor: new Date().toISOString(),
+      approvedForPublishing: false,
+      approvedAt: null,
+    });
+    db.log('info', `Prepared retry for "${pin.title}"; individual approval is required again.`);
+    res.json(db.pin(pin.id));
   });
 
   // A Trial-access production 403 turns an existing Practice record back into a queued retry.
@@ -392,7 +424,6 @@ function buildRouter(db) {
       const account = await pinterest.getAccount(connection, 'sandbox');
       const boards = await pinterest.getBoards(connection, 'sandbox');
       brand.pinterestSandbox = { ...connection, ...account };
-      brand.pinterestSandboxBoards = boards;
       db.save();
       res.json({ connected: true, account, boards });
     } catch (err) {
@@ -458,9 +489,6 @@ function buildRouter(db) {
         boards = [...boards, sandboxBoard];
         boardCreated = true;
       }
-      brand.pinterestSandboxBoards = boards;
-      db.save();
-
       const result = await pinterest.createPin(connection, { ...pin, boardId: sandboxBoard.id }, image, 'sandbox');
       db.updatePin(pin.id, {
         sandboxTest: {
@@ -505,8 +533,7 @@ function buildRouter(db) {
     try {
       const connection = await engine.liveConnection(db, brand);
       const boards = await pinterest.getBoards(connection);
-      db.setBoards(brand.id, boards);
-      db.log('info', `Loaded ${boards.length} Pinterest board(s) for ${brand.name}.`);
+      db.log('info', `Fetched ${boards.length} Pinterest board(s) for ${brand.name} without storing the board list.`);
       res.json(boards);
     } catch (err) {
       db.log('error', `Could not load boards for ${brand.name}: ${err.message}`);

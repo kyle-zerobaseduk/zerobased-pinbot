@@ -5,19 +5,24 @@ const path = require('path');
 const crypto = require('crypto');
 const config = require('./config');
 
-const SCOPES = ['boards:read', 'boards:write', 'pins:read', 'pins:write', 'user_accounts:read'];
+const PRODUCTION_SCOPES = ['boards:read', 'pins:write', 'user_accounts:read'];
+const SANDBOX_SCOPES = [...PRODUCTION_SCOPES, 'boards:write', 'pins:read'];
+
+function scopesFor(environment = 'production') {
+  return environment === 'sandbox' ? SANDBOX_SCOPES : PRODUCTION_SCOPES;
+}
 
 function basicAuthHeader() {
   const raw = `${config.pinterest.appId}:${config.pinterest.appSecret}`;
   return `Basic ${Buffer.from(raw).toString('base64')}`;
 }
 
-function buildAuthUrl(state) {
+function buildAuthUrl(state, environment = 'production') {
   const params = new URLSearchParams({
     client_id: config.pinterest.appId,
     redirect_uri: config.redirectUri,
     response_type: 'code',
-    scope: SCOPES.join(','),
+    scope: scopesFor(environment).join(','),
     state,
   });
   return `${config.pinterest.authBase}/?${params.toString()}`;
@@ -44,13 +49,13 @@ async function tokenRequest(body, environment = 'production') {
   return JSON.parse(text);
 }
 
-function connectionFromToken(token, extra = {}) {
+function connectionFromToken(token, extra = {}, environment = 'production') {
   return {
     accessToken: token.access_token,
     refreshToken: token.refresh_token || null,
     // Refresh a little early so a pin never fails on a token that expires mid-flight.
     expiresAt: new Date(Date.now() + (Number(token.expires_in || 2592000) - 300) * 1000).toISOString(),
-    scopes: token.scope || SCOPES.join(','),
+    scopes: token.scope || scopesFor(environment).join(','),
     connectedAt: new Date().toISOString(),
     ...extra,
   };
@@ -62,7 +67,7 @@ async function exchangeCode(code, environment = 'production') {
     code,
     redirect_uri: config.redirectUri,
   }, environment);
-  return connectionFromToken(token);
+  return connectionFromToken(token, {}, environment);
 }
 
 async function refreshConnection(connection, environment = 'production') {
@@ -72,13 +77,15 @@ async function refreshConnection(connection, environment = 'production') {
   const token = await tokenRequest({
     grant_type: 'refresh_token',
     refresh_token: connection.refreshToken,
+    // Pinterest supports requesting a subset during refresh. This ensures older
+    // production connections shed permissions the current workflow no longer uses.
+    scope: scopesFor(environment).join(','),
   }, environment);
   return connectionFromToken(token, {
     // Pinterest does not always return a new refresh token; keep the old one.
     refreshToken: token.refresh_token || connection.refreshToken,
     username: connection.username,
-    accountId: connection.accountId,
-  });
+  }, environment);
 }
 
 function isExpired(connection) {
@@ -115,7 +122,7 @@ async function apiRequest(connection, endpoint, options = {}, environment = 'pro
 
 async function getAccount(connection, environment = 'production') {
   const data = await apiRequest(connection, '/user_account', {}, environment);
-  return { username: data.username || '', accountId: data.id || '', accountType: data.account_type || '' };
+  return { username: data.username || '' };
 }
 
 async function getBoards(connection, environment = 'production') {
@@ -126,7 +133,7 @@ async function getBoards(connection, environment = 'production') {
     if (bookmark) query.set('bookmark', bookmark);
     const data = await apiRequest(connection, `/boards?${query.toString()}`, {}, environment);
     for (const board of data.items || []) {
-      boards.push({ id: board.id, name: board.name, privacy: board.privacy || '' });
+      boards.push({ id: board.id, name: board.name });
     }
     bookmark = data.bookmark || '';
   } while (bookmark);
@@ -193,7 +200,9 @@ function simulateCreatePin() {
 }
 
 module.exports = {
-  SCOPES,
+  PRODUCTION_SCOPES,
+  SANDBOX_SCOPES,
+  scopesFor,
   apiBase,
   buildAuthUrl,
   exchangeCode,

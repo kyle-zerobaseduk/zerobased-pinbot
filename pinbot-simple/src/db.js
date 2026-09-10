@@ -52,7 +52,7 @@ function starterBoards() {
 
 function defaultData() {
   return {
-    version: 1,
+    version: 2,
     settings: {
       timezone: config.timezone,
       paused: true, // start paused; nothing posts until the user says so
@@ -89,7 +89,7 @@ class Db {
         const parsed = JSON.parse(fs.readFileSync(this.file, 'utf8'));
         this.data = { ...defaultData(), ...parsed };
         this.data.settings = { ...defaultData().settings, ...(parsed.settings || {}) };
-        this.migrate();
+        if (this.migrate()) this.save();
         return;
       } catch (err) {
         // Never lose data on a parse error: park the bad file and start clean.
@@ -108,21 +108,86 @@ class Db {
 
   // Make sure both brands always exist, even if the file predates a change.
   migrate() {
+    let changed = false;
+    const resetLegacyDraftApprovals = Number(this.data.version || 1) < 2;
     for (const preset of DEFAULT_BRANDS) {
       const existing = this.data.brands.find((b) => b.id === preset.id);
       if (!existing) {
         this.data.brands.push({ ...preset });
+        changed = true;
       } else {
         for (const key of Object.keys(preset)) {
-          if (existing[key] === undefined) existing[key] = preset[key];
+          if (existing[key] === undefined) {
+            existing[key] = preset[key];
+            changed = true;
+          }
         }
       }
     }
-    if (!Array.isArray(this.data.oauthStates)) this.data.oauthStates = [];
-    if (!this.data.boards || typeof this.data.boards !== 'object') this.data.boards = {};
-    for (const [brandId, boards] of Object.entries(starterBoards())) {
-      if (!Array.isArray(this.data.boards[brandId])) this.data.boards[brandId] = boards;
+    if (!Array.isArray(this.data.oauthStates)) {
+      this.data.oauthStates = [];
+      changed = true;
     }
+    if (!this.data.boards || typeof this.data.boards !== 'object') {
+      this.data.boards = {};
+      changed = true;
+    }
+    for (const [brandId, boards] of Object.entries(starterBoards())) {
+      if (!Array.isArray(this.data.boards[brandId])) {
+        this.data.boards[brandId] = boards;
+        changed = true;
+      }
+    }
+
+    // Pinterest requires the owner to consider and approve each Pin individually.
+    // Existing records are deliberately migrated to Not approved; no old queue item
+    // may inherit permission merely because it predates this field.
+    for (const pin of this.data.pins) {
+      if (resetLegacyDraftApprovals || pin.approvedForPublishing === undefined) {
+        pin.approvedForPublishing = false;
+        pin.approvedAt = null;
+        changed = true;
+      }
+    }
+
+    // Keep only operational identifiers from Pinterest responses. Account IDs,
+    // account types, board privacy and cached Sandbox board lists are not needed.
+    for (const brand of this.data.brands) {
+      for (const key of ['pinterest', 'pinterestSandbox']) {
+        const connection = brand[key];
+        if (!connection) continue;
+        for (const unnecessary of ['accountId', 'accountType']) {
+          if (connection[unnecessary] !== undefined) {
+            delete connection[unnecessary];
+            changed = true;
+          }
+        }
+      }
+      if (brand.pinterestSandboxBoards !== undefined) {
+        delete brand.pinterestSandboxBoards;
+        changed = true;
+      }
+      // Fetch the connected account's board list only when the owner needs the
+      // selector. Selected board IDs remain on products and Pins, but the full
+      // Pinterest response is not retained in the data file.
+      if (brand.pinterest && this.data.boards[brand.id]?.length) {
+        this.data.boards[brand.id] = [];
+        changed = true;
+      }
+    }
+    for (const boards of Object.values(this.data.boards)) {
+      for (const board of boards) {
+        if (board.privacy !== undefined) {
+          delete board.privacy;
+          changed = true;
+        }
+      }
+    }
+    if (this.data.version !== 2) {
+      this.data.version = 2;
+      changed = true;
+    }
+    return changed;
   }
 
   // Write to a temp file then rename, so a crash mid-write cannot truncate the data.
@@ -256,6 +321,8 @@ class Db {
       pinterestUrl: null,
       error: null,
       attempts: 0,
+      approvedForPublishing: false,
+      approvedAt: null,
       createdAt: new Date().toISOString(),
     };
     this.data.pins.push(pin);
@@ -289,7 +356,7 @@ class Db {
   }
 
   setBoards(brandId, boards) {
-    this.data.boards[brandId] = boards;
+    this.data.boards[brandId] = boards.map((board) => ({ id: board.id, name: board.name }));
 
     // Products pointing at a board that no longer exists would fail at post
     // time with an unhelpful error, so surface them now instead.

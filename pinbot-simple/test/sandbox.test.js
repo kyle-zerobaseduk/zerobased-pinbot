@@ -51,6 +51,13 @@ test.after(() => server.close());
 test('Sandbox OAuth and one-record test stay separate from production and the queue', async () => {
   assert.equal(pinterest.apiBase('production'), 'https://api.pinterest.com/v5');
   assert.equal(pinterest.apiBase('sandbox'), 'https://api-sandbox.pinterest.com/v5');
+  assert.deepEqual(pinterest.PRODUCTION_SCOPES, ['boards:read', 'pins:write', 'user_accounts:read']);
+  assert.ok(!pinterest.PRODUCTION_SCOPES.includes('boards:write'));
+  assert.ok(!pinterest.PRODUCTION_SCOPES.includes('pins:read'));
+  assert.ok(pinterest.SANDBOX_SCOPES.includes('boards:write'));
+  assert.ok(pinterest.SANDBOX_SCOPES.includes('pins:read'));
+  const productionUrl = new URL(pinterest.buildAuthUrl('production-state'));
+  assert.equal(productionUrl.searchParams.get('scope'), 'boards:read,pins:write,user_accounts:read');
 
   const brand = db.brand('kd');
   brand.pinterest = { username: 'kdpublishingkyle', accessToken: 'production-token' };
@@ -100,6 +107,8 @@ test('Sandbox OAuth and one-record test stay separate from production and the qu
   const oauthState = db.data.oauthStates.at(-1);
   assert.equal(oauthState.environment, 'sandbox');
   assert.equal(oauthState.expectedUsername, 'kdpublishingkyle');
+  const oauthUrl = new URL(oauth.headers.get('location'));
+  assert.ok(oauthUrl.searchParams.get('scope').includes('boards:write'));
 
   const originals = {
     getAccount: pinterest.getAccount,
@@ -197,4 +206,29 @@ test('Sandbox OAuth and one-record test stay separate from production and the qu
   assert.match(cancelled.json.error, /Trial access/);
   assert.equal(db.pins({ status: 'queued' }).length, queuedBefore - 1);
   assert.equal(db.pin(unrelated.id).status, 'queued');
+});
+
+test('production boards are fetched for the selector without persisting the API response', async () => {
+  const brand = db.brand('kd');
+  brand.pinterest = {
+    username: 'kdpublishingkyle',
+    accessToken: 'production-token',
+    expiresAt: new Date(Date.now() + 86400000).toISOString(),
+  };
+  db.data.boards.kd = [];
+  db.save();
+
+  const originalGetBoards = pinterest.getBoards;
+  try {
+    pinterest.getBoards = async (_connection, environment) => {
+      assert.equal(environment, undefined);
+      return [{ id: 'live-board', name: 'Word Search Books' }];
+    };
+    const response = await call('/api/boards/kd/refresh', { method: 'POST', body: {} });
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.json, [{ id: 'live-board', name: 'Word Search Books' }]);
+    assert.deepEqual(db.boards('kd'), [], 'Pinterest board inventory is not stored');
+  } finally {
+    pinterest.getBoards = originalGetBoards;
+  }
 });

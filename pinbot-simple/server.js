@@ -34,6 +34,11 @@ app.get(['/kd-publishing', '/kd'], (req, res) => {
   res.sendFile(path.join(__dirname, 'site', 'kd-publishing.html'));
 });
 
+// Pinterest and visitors must be able to read the policy without a dashboard login.
+app.get(['/privacy/ZeroBasedUK', '/privacy/ZeroBasedUK/'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'site', 'privacy.html'));
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/healthz', (req, res) => {

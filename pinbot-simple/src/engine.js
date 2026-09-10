@@ -165,6 +165,11 @@ function markFailure(db, pin, message) {
 // Posts one pin. Falls back to simulation whenever live posting is off or
 // Pinterest is not connected yet, so the whole pipeline is testable today.
 async function postPin(db, pin) {
+  if (pin.approvedForPublishing !== true) {
+    db.log('warn', `Blocked unapproved pin "${pin.title}" before the publishing path.`);
+    return db.pin(pin.id);
+  }
+
   const brand = db.brand(pin.brandId);
   const product = db.product(pin.productId);
   const image = product ? product.images.find((i) => i.id === pin.imageId) : null;
@@ -199,6 +204,7 @@ async function postPin(db, pin) {
 function duePins(db, now = new Date()) {
   return db
     .pins({ status: 'queued' })
+    .filter((pin) => pin.approvedForPublishing === true)
     .filter((pin) => Date.parse(pin.scheduledFor) <= now.getTime())
     .sort((a, b) => Date.parse(a.scheduledFor) - Date.parse(b.scheduledFor));
 }

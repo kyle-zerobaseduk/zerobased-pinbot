@@ -14,6 +14,7 @@ delete process.env.ANTHROPIC_API_KEY; // force the offline copywriter
 
 const { Db } = require('../src/db');
 const engine = require('../src/engine');
+const pinterest = require('../src/pinterest');
 const time = require('../src/time');
 
 let counter = 0;
@@ -93,6 +94,7 @@ test('due pins post in simulation mode and update rotation counters', async () =
     link: product.url,
     scheduledFor: new Date('2026-08-30T05:00:00Z').toISOString(),
   });
+  db.updatePin(pin.id, { approvedForPublishing: true, approvedAt: new Date().toISOString() });
 
   db.setSettings({ paused: false });
   const posted = await engine.runDue(db, new Date('2026-08-30T06:00:00Z'));
@@ -129,7 +131,7 @@ test('pausing one brand leaves the other brand posting', async () => {
 
   for (const brandId of ['kd', 'zb']) {
     const product = addProduct(db, brandId, `Item ${brandId}`);
-    db.addPin({
+    const pin = db.addPin({
       brandId,
       productId: product.id,
       imageId: product.images[0].id,
@@ -138,6 +140,7 @@ test('pausing one brand leaves the other brand posting', async () => {
       link: product.url,
       scheduledFor: new Date('2026-08-30T05:00:00Z').toISOString(),
     });
+    db.updatePin(pin.id, { approvedForPublishing: true, approvedAt: new Date().toISOString() });
   }
 
   const posted = await engine.runDue(db, new Date('2026-08-30T06:00:00Z'));
@@ -158,6 +161,7 @@ test('a pin whose image was deleted retries then fails with a readable reason', 
     link: product.url,
     scheduledFor: new Date('2026-08-30T05:00:00Z').toISOString(),
   });
+  db.updatePin(pin.id, { approvedForPublishing: true, approvedAt: new Date().toISOString() });
 
   for (let i = 0; i < engine.MAX_ATTEMPTS; i += 1) {
     await engine.postPin(db, db.pin(pin.id));
@@ -167,6 +171,118 @@ test('a pin whose image was deleted retries then fails with a readable reason', 
   assert.equal(finished.status, 'failed');
   assert.equal(finished.attempts, engine.MAX_ATTEMPTS);
   assert.match(finished.error, /missing/i);
+});
+
+test('new and planned drafts are Not approved by default', async () => {
+  const db = freshDb();
+  const product = addProduct(db, 'kd', 'Approval Default');
+  const direct = db.addPin({
+    brandId: 'kd',
+    productId: product.id,
+    imageId: product.images[0].id,
+    title: 'Direct draft',
+    description: 'Review me.',
+    link: product.url,
+    scheduledFor: new Date().toISOString(),
+  });
+  assert.equal(direct.approvedForPublishing, false);
+  assert.equal(direct.approvedAt, null);
+
+  const planned = await engine.planBrand(db, db.brand('kd'), new Date('2026-08-30T05:00:00Z'));
+  assert.ok(planned.length > 0);
+  assert.ok(planned.every((pin) => pin.approvedForPublishing === false));
+});
+
+test('an unapproved due draft cannot reach the production Pinterest call', async () => {
+  const db = freshDb();
+  const product = addProduct(db, 'kd', 'Blocked Live Draft');
+  const pin = db.addPin({
+    brandId: 'kd',
+    productId: product.id,
+    imageId: product.images[0].id,
+    boardId: 'board-1',
+    title: 'Never send this',
+    description: 'Unapproved.',
+    link: product.url,
+    scheduledFor: new Date('2026-08-30T05:00:00Z').toISOString(),
+  });
+  db.brand('kd').pinterest = { accessToken: 'production-token', expiresAt: new Date(Date.now() + 86400000).toISOString() };
+  db.setSettings({ paused: false, liveMode: true });
+
+  const originalCreatePin = pinterest.createPin;
+  let calls = 0;
+  pinterest.createPin = async () => { calls += 1; throw new Error('must not be called'); };
+  try {
+    const run = await engine.runDue(db, new Date('2026-08-30T06:00:00Z'));
+    assert.deepEqual(run, []);
+    await engine.postPin(db, db.pin(pin.id));
+    assert.equal(calls, 0);
+    assert.equal(db.pin(pin.id).status, 'queued');
+    assert.equal(db.pin(pin.id).attempts, 0);
+  } finally {
+    pinterest.createPin = originalCreatePin;
+  }
+});
+
+test('an individually approved draft becomes scheduler-eligible in simulation only', async () => {
+  const db = freshDb();
+  const product = addProduct(db, 'kd', 'Approved Practice Draft');
+  const pin = db.addPin({
+    brandId: 'kd',
+    productId: product.id,
+    imageId: product.images[0].id,
+    title: 'Approved practice',
+    description: 'Simulation only.',
+    link: product.url,
+    scheduledFor: new Date('2026-08-30T05:00:00Z').toISOString(),
+  });
+  db.updatePin(pin.id, { approvedForPublishing: true, approvedAt: new Date().toISOString() });
+  db.setSettings({ paused: false, liveMode: false });
+
+  const originalCreatePin = pinterest.createPin;
+  let productionCalls = 0;
+  pinterest.createPin = async () => { productionCalls += 1; throw new Error('must not be called'); };
+  try {
+    const run = await engine.runDue(db, new Date('2026-08-30T06:00:00Z'));
+    assert.equal(run.length, 1);
+    assert.equal(db.pin(pin.id).status, 'simulated');
+    assert.equal(productionCalls, 0);
+  } finally {
+    pinterest.createPin = originalCreatePin;
+  }
+});
+
+test('migration marks legacy drafts unapproved and drops unnecessary Pinterest response data', () => {
+  const file = path.join(tmp, 'legacy.json');
+  const legacy = freshDb().data;
+  legacy.version = 1;
+  legacy.pins = [{
+    id: 'pin_legacy', brandId: 'kd', productId: 'prod_legacy', status: 'queued',
+    title: 'Legacy', description: 'Legacy draft', link: 'https://example.com',
+    scheduledFor: new Date().toISOString(), approvedForPublishing: true, approvedAt: new Date().toISOString(),
+  }];
+  legacy.products = [{
+    id: 'prod_legacy', brandId: 'kd', title: 'Legacy product', url: 'https://example.com',
+    boardId: 'needed-board', images: [], active: true,
+  }];
+  legacy.brands[0].pinterest = {
+    accessToken: 'keep-token', username: 'kdpub', accountId: 'drop-id', accountType: 'BUSINESS',
+  };
+  legacy.brands[0].pinterestSandboxBoards = [{ id: 'cached', name: 'Cached' }];
+  legacy.boards.kd = [{ id: 'needed-board', name: 'Word Search Books', privacy: 'PUBLIC' }];
+  fs.writeFileSync(file, JSON.stringify(legacy));
+
+  const db = new Db(file);
+  assert.equal(db.data.version, 2);
+  assert.equal(db.pin('pin_legacy').approvedForPublishing, false);
+  assert.equal(db.pin('pin_legacy').approvedAt, null);
+  assert.equal(db.brand('kd').pinterest.accessToken, 'keep-token');
+  assert.equal(db.brand('kd').pinterest.accountId, undefined);
+  assert.equal(db.brand('kd').pinterest.accountType, undefined);
+  assert.equal(db.brand('kd').pinterestSandboxBoards, undefined);
+  assert.deepEqual(db.boards('kd'), [], 'the connected account board inventory is fetched live, not persisted');
+  assert.equal(db.product('prod_legacy').boardId, 'needed-board', 'the selected board ID remains operational');
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).pins[0].approvedForPublishing, false);
 });
 
 test('deleting a product clears its queued pins but keeps posted history', () => {

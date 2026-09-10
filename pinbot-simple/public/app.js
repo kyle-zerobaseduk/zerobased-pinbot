@@ -7,6 +7,7 @@ let state = null;
 let brandId = localStorage.getItem('pinbot.brand') || 'kd';
 let activeTab = 'products';
 let openProductId = null;
+const liveBoardLists = {};
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -127,12 +128,14 @@ async function showApp() {
   el('app').classList.remove('hidden');
   el('tabs').classList.remove('hidden');
   await refresh();
+  await loadPinterestBoards(brandId, true);
   setInterval(refresh, 30000);
 }
 
 async function refresh() {
   try {
     state = await api('/state');
+    for (const [id, boards] of Object.entries(liveBoardLists)) state.boards[id] = boards;
     render();
   } catch (err) {
     if (String(err.message).includes('sign in')) location.reload();
@@ -161,12 +164,13 @@ function renderBrandSwitch() {
     </button>`).join('');
 
   el('brand-switch').querySelectorAll('button').forEach((button) => {
-    button.addEventListener('click', () => {
+    button.addEventListener('click', async () => {
       brandId = button.dataset.brand;
       localStorage.setItem('pinbot.brand', brandId);
       openProductId = null;
       resetProductForm();
       render();
+      await loadPinterestBoards(brandId, true);
     });
   });
 }
@@ -262,7 +266,7 @@ function productDetail(product) {
     </div>
     <div class="btn-row" style="margin-top:8px">
       <button class="btn-sm" data-preview="${product.id}">Preview pin text</button>
-      <button class="btn-sm" data-pin-now="${product.id}">Pin now</button>
+      <button class="btn-sm" data-pin-now="${product.id}">Create draft</button>
       <button class="btn-sm btn-danger" data-delete="${product.id}">Delete</button>
     </div>
     <div class="note" id="preview-${product.id}"></div>
@@ -348,7 +352,7 @@ function wireProductDetail(root) {
       button.disabled = true;
       try {
         const pin = await api(`/products/${button.dataset.pinNow}/pin-now`, { method: 'POST', body: {} });
-        toast(pin.status === 'posted' ? 'Posted to Pinterest.' : `Practice pin created (${pin.status}).`);
+        toast('Draft created. Review and approve it individually before it can run.');
         await refresh();
       } catch (err) {
         toast(err.message, true);
@@ -475,9 +479,19 @@ function pinCard(pin, showActions) {
       <b>${esc(pin.title)}</b>
       <span class="when">${fmtTime(pin.scheduledFor)}</span>
     </div>
-    <div class="desc">${esc(preview(pin.description, 150))}</div>
+    ${pinImage ? `<img src="${esc(imageSrc(pinImage))}" alt="Creative for ${esc(pin.title)}" style="width:96px;height:144px;object-fit:cover;border-radius:8px;margin-top:10px">` : ''}
+    <div class="desc">${showActions && pin.status === 'queued' ? esc(pin.description) : esc(preview(pin.description, 150))}</div>
+    ${pin.status === 'queued' ? `<div class="note" style="margin-top:8px">
+      <b>Board:</b> ${esc(boardName(pin.boardId) || 'No board selected')}<br>
+      <b>Destination:</b> <a href="${esc(pin.link)}" target="_blank" rel="noopener">${esc(pin.link)}</a>
+    </div>` : ''}
     <div class="meta" style="margin-top:6px">
       ${statusPill}
+      ${pin.status === 'queued'
+        ? (pin.approvedForPublishing
+          ? '<span class="pill ok">Approved</span>'
+          : '<span class="pill bad">Not approved</span>')
+        : ''}
       ${product ? `<span class="note"> ${esc(product.title)}</span>` : '<span class="note"> (product removed)</span>'}
       ${pin.pinterestUrl ? ` <a href="${esc(pin.pinterestUrl)}" target="_blank" rel="noopener">view</a>` : ''}
     </div>
@@ -491,6 +505,8 @@ function pinCard(pin, showActions) {
         <button class="btn-sm" data-save-pin-image="${pin.id}">Use image</button>
       </div>` : ''}
     ${showActions ? `<div class="btn-row" style="margin-top:8px">
+        ${pin.status === 'queued' && !pin.approvedForPublishing ? `<button class="btn-sm" data-approve="${pin.id}">Approve this Pin</button>` : ''}
+        ${pin.status === 'queued' && pin.approvedForPublishing ? `<button class="btn-sm" data-unapprove="${pin.id}">Withdraw approval</button>` : ''}
         ${pin.status === 'failed' ? `<button class="btn-sm" data-retry="${pin.id}">Try again</button>` : ''}
         ${pin.status !== 'posted' ? `<button class="btn-sm btn-danger" data-drop="${pin.id}">Remove</button>` : ''}
       </div>` : ''}
@@ -539,6 +555,31 @@ function renderQueue() {
       }
     });
   });
+  document.querySelectorAll('[data-approve]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      if (!confirm('Approve only this Pin after reviewing its image, title, full description, board and destination?')) return;
+      button.disabled = true;
+      try {
+        await api(`/pins/${button.dataset.approve}/approve`, { method: 'POST', body: {} });
+        toast('This Pin is individually approved.');
+        await refresh();
+      } catch (err) {
+        toast(err.message, true);
+      }
+    });
+  });
+  document.querySelectorAll('[data-unapprove]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      try {
+        await api(`/pins/${button.dataset.unapprove}/unapprove`, { method: 'POST', body: {} });
+        toast('Approval withdrawn.');
+        await refresh();
+      } catch (err) {
+        toast(err.message, true);
+      }
+    });
+  });
   document.querySelectorAll('[data-save-pin-image]').forEach((button) => {
     button.addEventListener('click', async () => {
       const select = document.querySelector(`[data-pin-image="${button.dataset.savePinImage}"]`);
@@ -563,6 +604,22 @@ el('plan-now').addEventListener('click', async (event) => {
 });
 
 // ---------- boards / pinterest ----------
+
+async function loadPinterestBoards(id, silent = false) {
+  const connectedBrand = state.brands.find((item) => item.id === id);
+  if (!connectedBrand?.pinterest.connected) return [];
+  try {
+    const boards = await api(`/boards/${id}/refresh`, { method: 'POST', body: {} });
+    liveBoardLists[id] = boards;
+    state.boards[id] = boards;
+    render();
+    if (!silent) toast(`Loaded ${boards.length} board(s).`);
+    return boards;
+  } catch (err) {
+    if (!silent) toast(err.message, true);
+    return [];
+  }
+}
 
 function renderBoards() {
   const b = brand();
@@ -599,11 +656,7 @@ function renderBoards() {
     reload.addEventListener('click', async () => {
       reload.disabled = true;
       try {
-        const boards = await api(`/boards/${brandId}/refresh`, { method: 'POST', body: {} });
-        toast(`Loaded ${boards.length} board(s).`);
-        await refresh();
-      } catch (err) {
-        toast(err.message, true);
+        await loadPinterestBoards(brandId);
       } finally {
         reload.disabled = false;
       }

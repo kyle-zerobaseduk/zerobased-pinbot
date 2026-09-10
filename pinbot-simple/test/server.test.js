@@ -131,11 +131,31 @@ test('a non-image upload is refused', async () => {
   assert.match(bad.json.error, /JPG|image/i);
 });
 
-test('"pin now" produces a practice pin while live mode is off', async () => {
+test('creating a draft does not simulate or publish it before individual approval', async () => {
   const product = db.products('kd')[0];
   const pinned = await call(`/api/products/${product.id}/pin-now`, { method: 'POST', body: {} });
   assert.equal(pinned.status, 200);
-  assert.equal(pinned.json.status, 'simulated');
+  assert.equal(pinned.json.status, 'queued');
+  assert.equal(pinned.json.approvedForPublishing, false);
+  assert.equal(pinned.json.pinterestPinId, null);
+});
+
+test('one draft can be approved and editing it revokes that approval', async () => {
+  const draft = db.pins({ status: 'queued' }).at(-1);
+  const other = db.pins({ status: 'queued' }).find((pin) => pin.id !== draft.id);
+  const approved = await call(`/api/pins/${draft.id}/approve`, { method: 'POST', body: {} });
+  assert.equal(approved.status, 200);
+  assert.equal(approved.json.approvedForPublishing, true);
+  assert.ok(approved.json.approvedAt);
+  if (other) assert.equal(db.pin(other.id).approvedForPublishing, false);
+
+  const edited = await call(`/api/pins/${draft.id}`, {
+    method: 'PATCH',
+    body: { title: `${draft.title} (review again)` },
+  });
+  assert.equal(edited.status, 200);
+  assert.equal(edited.json.approvedForPublishing, false);
+  assert.equal(edited.json.approvedAt, null);
 });
 
 test('live mode cannot be switched on before Pinterest is connected', async () => {
@@ -157,6 +177,22 @@ test('the K.D. Publishing page is served publicly', async () => {
   const page = await call('/kd');
   assert.equal(page.status, 200);
   assert.match(page.text, /K\.D\. Publishing/);
+});
+
+test('the privacy policy and public login explanation are accessible without signing in', async () => {
+  const saved = cookie;
+  cookie = '';
+  const policy = await call('/privacy/ZeroBasedUK');
+  assert.equal(policy.status, 200);
+  assert.match(policy.text, /Pinterest OAuth/);
+  assert.match(policy.text, /zerobaseduk@gmail\.com/);
+  assert.match(policy.text, /Information Commissioner/);
+
+  const login = await call('/');
+  assert.equal(login.status, 200);
+  assert.match(login.text, /first-party tool/);
+  assert.match(login.text, /\/privacy\/ZeroBasedUK/);
+  cookie = saved;
 });
 
 test('the health check works without signing in', async () => {
