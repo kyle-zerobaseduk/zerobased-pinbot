@@ -461,6 +461,7 @@ el('product-form').addEventListener('submit', async (event) => {
 
 function pinCard(pin, showActions) {
   const product = state.products.find((p) => p.id === pin.productId);
+  const pinImage = product && product.images.find((image) => image.id === pin.imageId);
   const statusPill = {
     queued: '<span class="pill mute">Queued</span>',
     posted: '<span class="pill ok">Posted</span>',
@@ -481,6 +482,14 @@ function pinCard(pin, showActions) {
       ${pin.pinterestUrl ? ` <a href="${esc(pin.pinterestUrl)}" target="_blank" rel="noopener">view</a>` : ''}
     </div>
     ${pin.error ? `<div class="err">${esc(pin.error)}</div>` : ''}
+    ${showActions && pin.status === 'simulated' && product && product.images.length > 1 ? `
+      <div class="btn-row" style="margin-top:8px;align-items:center">
+        ${pinImage ? `<img src="${esc(imageSrc(pinImage))}" alt="Current Practice test image" style="width:54px;height:81px;object-fit:cover;border-radius:6px">` : ''}
+        <select data-pin-image="${pin.id}" aria-label="Practice test image">
+          ${product.images.map((image, index) => `<option value="${esc(image.id)}" ${image.id === pin.imageId ? 'selected' : ''}>Image ${index + 1}</option>`).join('')}
+        </select>
+        <button class="btn-sm" data-save-pin-image="${pin.id}">Use image</button>
+      </div>` : ''}
     ${showActions ? `<div class="btn-row" style="margin-top:8px">
         ${pin.status === 'failed' ? `<button class="btn-sm" data-retry="${pin.id}">Try again</button>` : ''}
         ${pin.status !== 'posted' ? `<button class="btn-sm btn-danger" data-drop="${pin.id}">Remove</button>` : ''}
@@ -528,6 +537,14 @@ function renderQueue() {
       } catch (err) {
         toast(err.message, true);
       }
+    });
+  });
+  document.querySelectorAll('[data-save-pin-image]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const select = document.querySelector(`[data-pin-image="${button.dataset.savePinImage}"]`);
+      await api(`/pins/${button.dataset.savePinImage}`, { method: 'PATCH', body: { imageId: select.value } });
+      toast('Practice test image updated.');
+      await refresh();
     });
   });
 }
