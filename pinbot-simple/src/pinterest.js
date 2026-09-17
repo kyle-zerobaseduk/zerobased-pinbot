@@ -5,8 +5,8 @@ const path = require('path');
 const crypto = require('crypto');
 const config = require('./config');
 
-const PRODUCTION_SCOPES = ['boards:read', 'pins:write', 'user_accounts:read'];
-const SANDBOX_SCOPES = [...PRODUCTION_SCOPES, 'boards:write', 'pins:read'];
+const PRODUCTION_SCOPES = ['boards:read', 'boards:write', 'pins:read', 'pins:write', 'user_accounts:read'];
+const SANDBOX_SCOPES = [...PRODUCTION_SCOPES];
 
 function scopesFor(environment = 'production') {
   return environment === 'sandbox' ? SANDBOX_SCOPES : PRODUCTION_SCOPES;
@@ -83,8 +83,8 @@ async function refreshConnection(connection, environment = 'production') {
   const token = await tokenRequest({
     grant_type: 'refresh_token',
     refresh_token: connection.refreshToken,
-    // Pinterest supports requesting a subset during refresh. This ensures older
-    // production connections shed permissions the current workflow no longer uses.
+    // Request the full Create Pin scope set on refresh so older connections can
+    // pick up boards:write + pins:read after reconnect/refresh when Pinterest allows.
     scope: scopesFor(environment).join(','),
   }, environment);
   return connectionFromToken(token, {
