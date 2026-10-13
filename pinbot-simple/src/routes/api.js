@@ -39,6 +39,8 @@ function publicBrand(brand) {
           username: connection.username || '',
           connectedAt: connection.connectedAt || null,
           expiresAt: connection.expiresAt || null,
+          missingScopes: pinterest.missingScopes(connection, 'production'),
+          needsReconnect: pinterest.missingScopes(connection, 'production').length > 0,
         }
       : { connected: false },
     pinterestSandbox: sandboxConnection

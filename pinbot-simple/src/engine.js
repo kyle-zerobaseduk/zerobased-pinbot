@@ -118,17 +118,23 @@ async function planAll(db, now = new Date()) {
 // Posting
 // ---------------------------------------------------------------------------
 
-// Refreshes the stored token when it is close to expiry, then hands it back.
+// Refreshes the stored token only when it is expired or close to expiry
+// (expiresAt is stored 5 min early), then hands it back. A scope mismatch never
+// forces a refresh: refresh cannot add scopes, so it is surfaced as
+// "reconnect needed" instead.
 async function liveConnection(db, brand) {
   const connection = brand.pinterest;
   if (!connection || !connection.accessToken) return null;
-  const reducingScopes = !pinterest.hasExactScopes(connection, 'production');
-  if (!pinterest.isExpired(connection) && !reducingScopes) return connection;
-
-  const refreshed = await pinterest.refreshConnection(connection);
-  brand.pinterest = { ...connection, ...refreshed };
-  db.save();
-  db.log('info', `${reducingScopes ? 'Reduced and refreshed' : 'Refreshed'} Pinterest token for ${brand.name}.`);
+  if (pinterest.isExpired(connection)) {
+    const refreshed = await pinterest.refreshConnection(connection);
+    brand.pinterest = { ...connection, ...refreshed };
+    db.save();
+    db.log('info', `Refreshed Pinterest token for ${brand.name}.`);
+  }
+  const missing = pinterest.missingScopes(brand.pinterest, 'production');
+  if (missing.length) {
+    db.log('warn', `Reconnect needed for new permissions on ${brand.name}: missing ${missing.join(', ')}.`);
+  }
   return brand.pinterest;
 }
 
@@ -187,6 +193,10 @@ async function postPin(db, pin) {
     if (goLive) {
       if (!pin.boardId) throw new Error('No Pinterest board chosen for this product.');
       const connection = await liveConnection(db, brand);
+      const missing = pinterest.missingScopes(connection, 'production');
+      if (missing.includes('pins:write') || missing.includes('boards:read')) {
+        throw new Error(`Reconnect needed for new permissions (missing ${missing.join(', ')}).`);
+      }
       result = await pinterest.createPin(connection, pin, image);
       db.log('info', `Posted to Pinterest: "${pin.title}" (${brand.name}).`);
     } else {

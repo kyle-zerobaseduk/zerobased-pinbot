@@ -18,6 +18,13 @@ function hasExactScopes(connection, environment = 'production') {
   return granted.size === expected.size && [...expected].every((scope) => granted.has(scope));
 }
 
+// Required scopes this connection's stored grant does not include. A refresh
+// cannot add these; only a fresh Connect (OAuth consent) can.
+function missingScopes(connection, environment = 'production') {
+  const granted = new Set(String(connection?.scopes || '').split(/[\s,]+/).filter(Boolean));
+  return scopesFor(environment).filter((scope) => !granted.has(scope));
+}
+
 function basicAuthHeader() {
   const raw = `${config.pinterest.appId}:${config.pinterest.appSecret}`;
   return `Basic ${Buffer.from(raw).toString('base64')}`;
@@ -83,14 +90,15 @@ async function refreshConnection(connection, environment = 'production') {
   const token = await tokenRequest({
     grant_type: 'refresh_token',
     refresh_token: connection.refreshToken,
-    // Request the full Create Pin scope set on refresh so older connections can
-    // pick up boards:write + pins:read after reconnect/refresh when Pinterest allows.
-    scope: scopesFor(environment).join(','),
+    // No scope param: Pinterest's refresh keeps the original grant (scope may
+    // only narrow it). Asking for scopes the grant lacks returns 400 code 282.
   }, environment);
   return connectionFromToken(token, {
     // Pinterest does not always return a new refresh token; keep the old one.
     refreshToken: token.refresh_token || connection.refreshToken,
     username: connection.username,
+    // Record what Pinterest actually returned, never assume the full set.
+    scopes: token.scope || connection.scopes || '',
   }, environment);
 }
 
@@ -210,6 +218,7 @@ module.exports = {
   SANDBOX_SCOPES,
   scopesFor,
   hasExactScopes,
+  missingScopes,
   apiBase,
   buildAuthUrl,
   exchangeCode,
