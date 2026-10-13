@@ -51,13 +51,13 @@ test.after(() => server.close());
 test('Sandbox OAuth and one-record test stay separate from production and the queue', async () => {
   assert.equal(pinterest.apiBase('production'), 'https://api.pinterest.com/v5');
   assert.equal(pinterest.apiBase('sandbox'), 'https://api-sandbox.pinterest.com/v5');
-  assert.deepEqual(pinterest.PRODUCTION_SCOPES, ['boards:read', 'pins:write', 'user_accounts:read']);
-  assert.ok(!pinterest.PRODUCTION_SCOPES.includes('boards:write'));
-  assert.ok(!pinterest.PRODUCTION_SCOPES.includes('pins:read'));
-  assert.ok(pinterest.SANDBOX_SCOPES.includes('boards:write'));
+  assert.deepEqual(pinterest.PRODUCTION_SCOPES, ['boards:read', 'boards:write', 'pins:read', 'pins:write', 'user_accounts:read']);
+  assert.ok(pinterest.PRODUCTION_SCOPES.includes('boards:write'));
+  assert.ok(pinterest.PRODUCTION_SCOPES.includes('pins:read'));
+  assert.deepEqual(pinterest.SANDBOX_SCOPES, pinterest.PRODUCTION_SCOPES);
   assert.ok(pinterest.SANDBOX_SCOPES.includes('pins:read'));
   const productionUrl = new URL(pinterest.buildAuthUrl('production-state'));
-  assert.equal(productionUrl.searchParams.get('scope'), 'boards:read,pins:write,user_accounts:read');
+  assert.equal(productionUrl.searchParams.get('scope'), 'boards:read,boards:write,pins:read,pins:write,user_accounts:read');
 
   const brand = db.brand('kd');
   brand.pinterest = { username: 'kdpublishingkyle', accessToken: 'production-token' };

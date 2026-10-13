@@ -252,38 +252,124 @@ test('an individually approved draft becomes scheduler-eligible in simulation on
   }
 });
 
-test('a working production connection with legacy extra scopes is reduced on refresh', async () => {
+test('an unexpired under-scoped connection is NOT refreshed and is flagged reconnect-needed', async () => {
   const db = freshDb();
   const brand = db.brand('kd');
   brand.pinterest = {
-    accessToken: 'old-access',
-    refreshToken: 'refresh',
+    accessToken: 'old-access', refreshToken: 'refresh',
     expiresAt: new Date(Date.now() + 86400000).toISOString(),
-    scopes: 'boards:read boards:write pins:read pins:write user_accounts:read',
-    username: 'kdpub',
+    scopes: 'boards:read,pins:write,user_accounts:read', username: 'kdpub',
   };
-
   const originalRefresh = pinterest.refreshConnection;
   let calls = 0;
-  pinterest.refreshConnection = async (connection, environment) => {
-    calls += 1;
+  pinterest.refreshConnection = async () => { calls += 1; throw new Error('must not refresh'); };
+  try {
+    const connection = await engine.liveConnection(db, brand);
+    assert.equal(calls, 0);
     assert.equal(connection.accessToken, 'old-access');
-    assert.equal(environment, undefined);
-    return {
-      accessToken: 'reduced-access',
-      refreshToken: 'refresh-2',
-      expiresAt: new Date(Date.now() + 86400000).toISOString(),
-      scopes: pinterest.PRODUCTION_SCOPES.join(','),
-      username: 'kdpub',
-    };
+    assert.deepEqual(pinterest.missingScopes(connection), ['boards:write', 'pins:read']);
+  } finally {
+    pinterest.refreshConnection = originalRefresh;
+  }
+});
+
+test('an expired full-scope connection (K.D. case) refreshes and keeps its scopes', async () => {
+  const db = freshDb();
+  const brand = db.brand('kd');
+  const full = pinterest.PRODUCTION_SCOPES.join(',');
+  brand.pinterest = {
+    accessToken: 'old-access', refreshToken: 'refresh',
+    expiresAt: new Date(Date.now() - 1000).toISOString(), scopes: full, username: 'kdpub',
+  };
+  const originalRefresh = pinterest.refreshConnection;
+  let calls = 0;
+  pinterest.refreshConnection = async () => {
+    calls += 1;
+    return { accessToken: 'new-access', refreshToken: 'refresh-2',
+      expiresAt: new Date(Date.now() + 86400000).toISOString(), scopes: full, username: 'kdpub' };
   };
   try {
     const connection = await engine.liveConnection(db, brand);
     assert.equal(calls, 1);
-    assert.equal(connection.accessToken, 'reduced-access');
-    assert.equal(connection.scopes, 'boards:read,pins:write,user_accounts:read');
+    assert.equal(connection.accessToken, 'new-access');
+    assert.deepEqual(pinterest.missingScopes(connection), []);
   } finally {
     pinterest.refreshConnection = originalRefresh;
+  }
+});
+
+test('refreshConnection sends no scope param and records the scopes Pinterest returned', async () => {
+  const originalFetch = global.fetch;
+  let body = null;
+  global.fetch = async (url, opts) => {
+    body = new URLSearchParams(opts.body);
+    return { ok: true, text: async () => JSON.stringify({ access_token: 'a2', expires_in: 2592000, scope: 'boards:read pins:write' }) };
+  };
+  try {
+    const out = await pinterest.refreshConnection({ refreshToken: 'r1', scopes: 'boards:read,pins:write', username: 'zb' });
+    assert.equal(body.get('grant_type'), 'refresh_token');
+    assert.equal(body.has('scope'), false);
+    assert.equal(out.scopes, 'boards:read pins:write');
+    assert.equal(out.refreshToken, 'r1');
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('refreshConnection falls back to the stored grant scopes, never the full set', async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({ ok: true, text: async () => JSON.stringify({ access_token: 'a2', expires_in: 2592000 }) });
+  try {
+    const out = await pinterest.refreshConnection({ refreshToken: 'r1', scopes: 'boards:read', username: 'zb' });
+    assert.equal(out.scopes, 'boards:read');
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('missing Create Pin permissions block posting safely: no Pinterest call, clear Reconnect needed message', async () => {
+  const db = freshDb();
+  const product = addProduct(db, 'kd', 'Under-scoped Draft');
+  const pin = db.addPin({
+    brandId: 'kd',
+    productId: product.id,
+    imageId: product.images[0].id,
+    boardId: 'board-1',
+    title: 'Blocked by missing permissions',
+    description: 'Approved but the grant lacks pins:write.',
+    link: product.url,
+    scheduledFor: new Date('2026-08-30T05:00:00Z').toISOString(),
+  });
+  db.updatePin(pin.id, { approvedForPublishing: true, approvedAt: new Date().toISOString() });
+  db.brand('kd').pinterest = {
+    accessToken: 'test-only-access', refreshToken: 'test-only-refresh',
+    expiresAt: new Date(Date.now() + 86400000).toISOString(),
+    scopes: 'boards:read,user_accounts:read', username: 'kdpub',
+  };
+  db.setSettings({ paused: false, liveMode: true });
+
+  const originalCreatePin = pinterest.createPin;
+  const originalRefresh = pinterest.refreshConnection;
+  const originalFetch = global.fetch;
+  let createCalls = 0;
+  let refreshCalls = 0;
+  let fetchCalls = 0;
+  pinterest.createPin = async () => { createCalls += 1; throw new Error('must not be called'); };
+  pinterest.refreshConnection = async () => { refreshCalls += 1; throw new Error('must not refresh'); };
+  global.fetch = async () => { fetchCalls += 1; throw new Error('no network allowed'); };
+  try {
+    const after = await engine.postPin(db, db.pin(pin.id));
+    assert.equal(createCalls, 0, 'Create Pin must not be called');
+    assert.equal(refreshCalls, 0, 'an unexpired token must not be refreshed');
+    assert.equal(fetchCalls, 0, 'no HTTP request may reach Pinterest');
+    assert.notEqual(after.status, 'posted');
+    assert.ok(!after.pinterestId, 'no Pinterest id recorded');
+    assert.match(after.error, /Reconnect needed/);
+    assert.match(after.error, /pins:write/);
+  } finally {
+    pinterest.createPin = originalCreatePin;
+    pinterest.refreshConnection = originalRefresh;
+    global.fetch = originalFetch;
   }
 });
 
