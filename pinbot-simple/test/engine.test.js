@@ -327,6 +327,52 @@ test('refreshConnection falls back to the stored grant scopes, never the full se
   }
 });
 
+test('missing Create Pin permissions block posting safely: no Pinterest call, clear Reconnect needed message', async () => {
+  const db = freshDb();
+  const product = addProduct(db, 'kd', 'Under-scoped Draft');
+  const pin = db.addPin({
+    brandId: 'kd',
+    productId: product.id,
+    imageId: product.images[0].id,
+    boardId: 'board-1',
+    title: 'Blocked by missing permissions',
+    description: 'Approved but the grant lacks pins:write.',
+    link: product.url,
+    scheduledFor: new Date('2026-08-30T05:00:00Z').toISOString(),
+  });
+  db.updatePin(pin.id, { approvedForPublishing: true, approvedAt: new Date().toISOString() });
+  db.brand('kd').pinterest = {
+    accessToken: 'test-only-access', refreshToken: 'test-only-refresh',
+    expiresAt: new Date(Date.now() + 86400000).toISOString(),
+    scopes: 'boards:read,user_accounts:read', username: 'kdpub',
+  };
+  db.setSettings({ paused: false, liveMode: true });
+
+  const originalCreatePin = pinterest.createPin;
+  const originalRefresh = pinterest.refreshConnection;
+  const originalFetch = global.fetch;
+  let createCalls = 0;
+  let refreshCalls = 0;
+  let fetchCalls = 0;
+  pinterest.createPin = async () => { createCalls += 1; throw new Error('must not be called'); };
+  pinterest.refreshConnection = async () => { refreshCalls += 1; throw new Error('must not refresh'); };
+  global.fetch = async () => { fetchCalls += 1; throw new Error('no network allowed'); };
+  try {
+    const after = await engine.postPin(db, db.pin(pin.id));
+    assert.equal(createCalls, 0, 'Create Pin must not be called');
+    assert.equal(refreshCalls, 0, 'an unexpired token must not be refreshed');
+    assert.equal(fetchCalls, 0, 'no HTTP request may reach Pinterest');
+    assert.notEqual(after.status, 'posted');
+    assert.ok(!after.pinterestId, 'no Pinterest id recorded');
+    assert.match(after.error, /Reconnect needed/);
+    assert.match(after.error, /pins:write/);
+  } finally {
+    pinterest.createPin = originalCreatePin;
+    pinterest.refreshConnection = originalRefresh;
+    global.fetch = originalFetch;
+  }
+});
+
 test('migration marks legacy drafts unapproved and drops unnecessary Pinterest response data', () => {
   const file = path.join(tmp, 'legacy.json');
   const legacy = freshDb().data;
